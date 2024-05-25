@@ -1,6 +1,9 @@
 program mta;
 {$I WaspLib/osr.simba}
 
+var
+  RSW: TRSWalker;
+
 procedure DownloadMap(const URL, Filename: string);
 var
   Client: Int32;
@@ -13,14 +16,80 @@ begin
   end;
 end;
 
-procedure InitiateScript();
+procedure SetupWalker();
 var
   MapURL: String := 'https://i.imgur.com/SGVaRzn.png';
 begin
   if not FileExists(AppPath+'\Includes\WaspLib\osr\walker\maps\mta.png') then
     DownloadMap(MapURL, AppPath+'\Includes\WaspLib\osr\walker\maps\mta.png');
 
-  RSW.Setup('mta');
+  RSW.Setup('mta', 2);
+end;
+
+procedure InitiateScript();
+begin
+  SetupWalker();
+end;
+
+procedure ScriptLoop();
+var
+  TelekineticRoom1: TBox := [30, 30, 215, 193];
+  TelekineticRoom2: TBox := [297, 41, 448, 174];
+  TelekineticRoom3: TBox := [471, 39, 707, 202];
+  TelekineticRoom4: TBox := [732, 50, 914, 226];
+  TelekineticRoom5: TBox := [1011, 110, 1128, 224];
+  TelekineticRoom6: TBox := [42, 359, 231, 471];
+  TelekineticRoom7: TBox := [275, 323, 425, 506];
+  TelekineticRoom8: TBox := [492, 364, 644, 491];
+  TelekineticRoom9: TBox := [699, 338, 920, 499];
+  TelekineticRoom10: TBox := [1000, 322, 1128, 501];
+  EnchantRoom: TBox := [311, 548, 543, 767];
+  CreatureGraveyard: TBox := [30, 524, 257, 768];
+  AlchemyRoom: TBox := [608, 580, 800, 770];
+  Lobby: TBox := [902, 595, 1062, 768];
+  Pos: TPoint := RSW.GetMyPos();
+begin
+  if TelekineticRoom1.Contains(Pos) then
+    WriteLn('In TelekineticRoom1');
+
+  if TelekineticRoom2.Contains(Pos) then
+    WriteLn('In TelekineticRoom2');
+
+  if TelekineticRoom3.Contains(Pos) then
+    WriteLn('In TelekineticRoom3');
+
+  if TelekineticRoom4.Contains(Pos) then
+    WriteLn('In TelekineticRoom4');
+
+  if TelekineticRoom5.Contains(Pos) then
+    WriteLn('In TelekineticRoom5');
+
+  if TelekineticRoom6.Contains(Pos) then
+    WriteLn('In TelekineticRoom6');
+
+  if TelekineticRoom7.Contains(Pos) then
+    WriteLn('In TelekineticRoom7');
+
+  if TelekineticRoom8.Contains(Pos) then
+    WriteLn('In TelekineticRoom8');
+
+  if TelekineticRoom9.Contains(Pos) then
+    WriteLn('In TelekineticRoom9');
+
+  if TelekineticRoom10.Contains(Pos) then
+    WriteLn('In TelekineticRoom10');
+
+  if Lobby.Contains(Pos) then
+    WriteLn('In Lobby');
+
+  if CreatureGraveyard.Contains(Pos) then
+    WriteLn('In Creature Graveyard');
+
+  if EnchantRoom.Contains(Pos) then
+    WriteLn('In Enchant room');
+
+  if AlchemyRoom.Contains(Pos) then
+    WriteLn('In Alchemyroom');
 end;
 
 begin
@@ -28,7 +97,7 @@ begin
   repeat
     begin
       ScriptLoop();
-      WaitEx(125, 50);
+      WaitEx(1000, 50);
     end;
   until false;
 end.
