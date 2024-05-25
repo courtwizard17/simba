@@ -1,0 +1,34 @@
+program mta;
+{$I WaspLib/osr.simba}
+
+procedure DownloadMap(const URL, Filename: string);
+var
+  Client: Int32;
+begin
+  Client := InitializeHTTPClient(False);
+  try
+    GetHTTPPageEx(Client, URL, Filename);
+  finally
+    FreeHTTPClient(Client);
+  end;
+end;
+
+procedure InitiateScript();
+var
+  MapURL: String := 'https://i.imgur.com/SGVaRzn.png';
+begin
+  if not FileExists(AppPath+'\Includes\WaspLib\osr\walker\maps\mta.png') then
+    DownloadMap(MapURL, AppPath+'\Includes\WaspLib\osr\walker\maps\mta.png');
+
+  RSW.Setup('mta');
+end;
+
+begin
+  InitiateScript();
+  repeat
+    begin
+      ScriptLoop();
+      WaitEx(125, 50);
+    end;
+  until false;
+end.
