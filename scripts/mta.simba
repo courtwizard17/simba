@@ -41,7 +41,7 @@ end;
 
 procedure SetupWalker();
 var
-  MapURL: String := 'https://i.imgur.com/SGVaRzn.png';
+  MapURL: String := 'https://i.imgur.com/6Q49VlM.png';
 begin
   if not FileExists(AppPath+'\Includes\WaspLib\osr\walker\maps\mta.png') then
     DownloadMap(MapURL, AppPath+'\Includes\WaspLib\osr\walker\maps\mta.png');
@@ -71,7 +71,7 @@ begin
   GraveyardArea := [30, 524, 257, 768];
   EnchantArea := [311, 548, 543, 767];
   AlchemyArea := [608, 580, 800, 770];
-  LobbyArea := [902, 595, 1062, 768];
+  LobbyArea := [967, 591, 1048, 718];
 end;
 
 procedure SetupObjects();
@@ -156,6 +156,7 @@ procedure InitiateScript();
 begin
   WriteDebug(ToStr('Starting script in ', Mode, ' Mode.'));
   SetupWalker();
+  SetupAreas();
 end;
 
 procedure ScriptLoop();
@@ -173,15 +174,16 @@ var
   Pos: TPoint := RSW.GetMyPos();
 begin
   WriteLn(Pos);
+  WriteLn(inlobby);
 end;
 
 begin
   InitiateScript();
-  {repeat
+  repeat
     begin
       ScriptLoop();
       WaitEx(1000, 50);
     end;
-  until false;}
+  until false;
   rsw.DebugPosition();
 end.
