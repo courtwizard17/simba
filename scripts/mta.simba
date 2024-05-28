@@ -66,6 +66,79 @@ begin
   WriteLn(SRL.TimeStamp(), ':[Script]: ', Message);
 end;
 
+procedure SetupTheatres();
+begin
+  with Theatres[0] do
+  begin
+    Index := 0;
+    Tiles := [[123, 123]];
+    Area := [30, 30, 215, 193];
+  end;
+
+  with Theatres[1] do
+  begin
+    Index := 1;
+    Tiles := [[123, 123]];
+    Area := [297, 41, 448, 174];
+  end;
+
+  with Theatres[2] do
+  begin
+    Index := 2;
+    Tiles := [[123, 123]];
+    Area := [471, 39, 707, 202];
+  end;
+
+  with Theatres[3] do
+  begin
+    Index := 3;
+    Tiles := [[123, 123]];
+    Area := [732, 50, 914, 226];
+  end;
+
+  with Theatres[4] do
+  begin
+    Index := 4;
+    Tiles := [[123, 123]];
+    Area := [1011, 110, 1128, 224];
+  end;
+
+  with Theatres[5] do
+  begin
+    Index := 5;
+    Tiles := [[123, 123]];
+    Area := [42, 359, 231, 471];
+  end;
+
+  with Theatres[6] do
+  begin
+    Index := 6;
+    Tiles := [[123, 123]];
+    Area := [275, 323, 425, 506];
+  end;
+
+  with Theatres[7] do
+  begin
+    Index := 7;
+    Tiles := [[123, 123]];
+    Area := [492, 364, 644, 491];
+  end;
+
+  with Theatres[8] do
+  begin
+    Index := 8;
+    Tiles := [[123, 123]];
+    Area := [699, 338, 920, 499];
+  end;
+
+  with Theatres[9] do
+  begin
+    Index := 9;
+    Tiles := [[123, 123]];
+    Area := [1000, 322, 1128, 501];
+  end;
+end;
+
 procedure SetupAreas();
 begin
   GraveyardArea := [30, 524, 257, 768];
@@ -117,17 +190,17 @@ begin
   case Mode of
     EMode.ALCHEMY:
     begin
-      WriteLn('Todo');
+
     end;
 
     EMode.TELEKINETIC:
     begin
-      WriteLn('Todo');
+
     end;
 
     EMode.GRAVEYARD:
     begin
-      WriteLn('Todo');
+
     end;
 
     EMode.ENCHANT:
@@ -161,16 +234,6 @@ end;
 
 procedure ScriptLoop();
 var
-  {TelekineticRoom1: TBox := [30, 30, 215, 193];
-  TelekineticRoom2: TBox := [297, 41, 448, 174];
-  TelekineticRoom3: TBox := [471, 39, 707, 202];
-  TelekineticRoom4: TBox := [732, 50, 914, 226];
-  TelekineticRoom5: TBox := [1011, 110, 1128, 224];
-  TelekineticRoom6: TBox := [42, 359, 231, 471];
-  TelekineticRoom7: TBox := [275, 323, 425, 506];
-  TelekineticRoom8: TBox := [492, 364, 644, 491];
-  TelekineticRoom9: TBox := [699, 338, 920, 499];
-  TelekineticRoom10: TBox := [1000, 322, 1128, 501];}
   Pos: TPoint := RSW.GetMyPos();
 begin
   WriteLn(Pos);
