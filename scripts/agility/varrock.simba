@@ -154,7 +154,7 @@ begin
 
   StartXP := XPBar.Read();
 
-  if StartXP < 1 then
+  if StartXP < 69 then
     TerminateScript('Failed to read XP, make sure XPBar is set up!');
 
   Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
@@ -480,6 +480,7 @@ begin
 
   HealthManagement();
   Step := GetStep();
+  CalculateXP();
 
   if ReportTimer.ElapsedTime > 60000 then
     PrintProgress();
