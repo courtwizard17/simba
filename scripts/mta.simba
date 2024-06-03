@@ -22,6 +22,7 @@ const
   Mode = EMode.TELEKINETIC;
 
 var
+  State: EState;
   RSW: TRSWalker;
   Timer, ReportTimer: TStopwatch;
   StartXP, CurrentXP, GainedXP: Int32;
@@ -33,11 +34,14 @@ var
   Theatres: Array [0..9] of TTheatre;
 
 procedure DownloadMap(const URL, Filename: String);
-var Client: Int32;
+var
+  Client: Int32;
 begin
   Client := InitializeHTTPClient(False);
-  try GetHTTPPageEx(Client, URL, Filename);
-  finally FreeHTTPClient(Client);
+  try
+    GetHTTPPageEx(Client, URL, Filename);
+  finally
+    FreeHTTPClient(Client);
   end;
 end;
 
@@ -54,7 +58,8 @@ begin
 end;
 
 procedure CalculateXP();
-var t: Int32;
+var
+  t: Int32;
 begin
   CurrentXP := XPBar.Read();
   t         := GainedXP;
@@ -69,28 +74,29 @@ end;
 
 procedure KeyboardRotate();
 var
-  Arrow: Integer;
-  Duration: Int64;
+  a: Integer;
 begin
   if SRL.Dice(50) then
-    Arrow := $25
+    a := $25
   else
-    Arrow := $27;
-  Duration := SRL.NormalRange(250, 2250);
-  Keyboard.KeyDown(Arrow);
-  Sleep(Duration);
-  Keyboard.KeyUp(Arrow);
+    a := $27;
+
+  Keyboard.KeyDown(a);
+  Sleep(SRL.NormalRange(250, 1750));
+  Keyboard.KeyUp(a);
 end;
 
 procedure PauseTimer(Task: PBreakTask);
-var t: PBreakTask;
+var
+  t: PBreakTask;
 begin
   Timer.Pause;
   T := Task;
 end;
 
 procedure ResumeTimer(Task: PBreakTask);
-var t: PBreakTask;
+var
+  t: PBreakTask;
 begin
   Timer.Resume;
   T := Task;
@@ -98,19 +104,19 @@ end;
 
 procedure TAntiban.DoLoseFocus();
 begin
-  Self.LoseFocus(SRL.NormalRange(800,3500));
+  Self.LoseFocus(SRL.NormalRange(450, 2750));
 end;
 
 procedure SetupAntiban();
 begin
   Antiban.Skills := [ERSSKILL.MAGIC, ERSSKILL.TOTAL];
-  Antiban.AddTask(ONE_MINUTE*2,   @Mouse.RandomMovement, 1);
-  Antiban.AddTask(ONE_MINUTE*6,   @Antiban.HoverMSPlayers, 1);
-  Antiban.AddTask(ONE_MINUTE*3,   @Antiban.DoLoseFocus, 1);
-  Antiban.AddTask(ONE_MINUTE*7,   @Antiban.RandomRotate, 1);
-  Antiban.AddTask(ONE_MINUTE*7,   @KeyboardRotate, 1);
-  Antiban.AddTask(ONE_MINUTE*8,   @Antiban.HoverMSNPCs, 1);
-  Antiban.AddTask(ONE_MINUTE*25,  @Antiban.HoverSkills, 1);
+  Antiban.AddTask(ONE_MINUTE*2, @Mouse.RandomMovement, 1);
+  Antiban.AddTask(ONE_MINUTE*6, @Antiban.HoverMSPlayers, 1);
+  Antiban.AddTask(ONE_MINUTE*3, @Antiban.DoLoseFocus, 1);
+  Antiban.AddTask(ONE_MINUTE*7, @Antiban.RandomRotate, 1);
+  Antiban.AddTask(ONE_MINUTE*7, @KeyboardRotate, 1);
+  Antiban.AddTask(ONE_MINUTE*8, @Antiban.HoverMSNPCs, 1);
+  Antiban.AddTask(ONE_MINUTE*25, @Antiban.HoverSkills, 1);
   Antiban.AddBreak(40 * ONE_MINUTE, 6 * ONE_MINUTE, 0.3, 1);
   Antiban.OnStartBreak := @PauseTimer;
   Antiban.OnFinishBreak := @ResumeTimer;
@@ -234,31 +240,6 @@ begin
   LobbyArea := [967, 591, 1048, 718];
 end;
 
-procedure DrawNeonRectangle(Rect: TRectangle);
-var
-  RR,RG,RB,
-  R,G,B,i: Integer;
-  Pts: TPointArray;
-  Cols: TIntegerArray;
-  Color: Integer := 9442932;
-begin
-  ColorToRGB(Color, RR, RG, RB);
-  try
-    Pts := TPAFromPolygon(Rect.ToTPA);
-    Cols := GetColors(Pts);
-
-    for i:=0 to high(Cols) do
-    begin
-      ColorToRGB(Cols[i], R, G, B);
-      R := Round(0.01 * (70 * R + 30 * RR));
-      G := Round(0.01 * (70 * G + 30 * RG));
-      B := Round(0.01 * (70 * B + 30 * RB));
-      RSClient.Image.DrawTPA([Pts[i]], RGBtoColor(R,G,B));
-    end;
-  except
-  end;
-end;
-
 procedure SetupObjects();
 begin
   with EnchantStatue do
@@ -295,7 +276,7 @@ begin
   Result := RSW.GetMyPos.InBox(LobbyArea);
 end;
 
-function GetState(Mode: EMode): EState;
+function GetState(): EState;
 var
   Pos: TPoint := RSW.GetMyPos();
 begin
@@ -356,9 +337,8 @@ procedure StepMazeTile(Maze: TBox; Step: String);
 var
   Pos: TPoint := RSW.GetMyPos();
   Dest: TPointArray;
-  i: Int32;
   Rect: TRectangle;
-  Bds: TBox;
+  i: Int32;
 begin
   case Step of
     'W': Dest := [[Maze.X1, Round((Maze.Y1+Maze.Y2)/2)], [Maze.X1-4, Round((Maze.Y1+Maze.Y2)/2)]];
@@ -411,7 +391,6 @@ begin
     Login.LoginPlayer();
 
   WaitUntil(RSClient.IsLoggedIn(), 250, 12000);
-
   StartXP := XPBar.Read();
 
   if StartXP < 69 then
@@ -419,8 +398,8 @@ begin
 
   Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
   Options.SetZoomLevel(Random(0, 1));
-  Mouse.Speed := Random(20, 25);
-  Mouse.Wind := Random(1, 4);
+  Mouse.Speed := Random(19, 24);
+  Mouse.Wind := Random(1, 3);
   RSW.AdaptiveWalk := True;
 
   SetupWalker();
@@ -433,172 +412,127 @@ begin
   ReportTimer.Start();
 end;
 
-function GetGuardianInMaze(): TPoint;
+function FindMazePoint(out Location: TPoint): Boolean;
 var
-  MazeColor: TCTS2Color := CTS2(9866640, 1, 0.01, 0.01);
-  Theatre, i, ColorAmount, DotAmount: Int32;
-  MazeCenter: TPoint;
+  Pos: TPoint := RSW.GetMyPos();
+  MazeRect: TRectangle;
+  Theatre, i: Int32;
   Dots: TPointArray;
-  SearchArea: TBox;
+  Angle: Double;
+  Area: TBox;
 begin
-  Theatre := GetTheatre();
-
-  if Theatre < 0 then
-    Exit(Point(0, 0));
-
-  MazeCenter := RSW.WorldToMM(Theatres[Theatre].Maze.Center());
   Dots := Minimap.GetDots(ERSMinimapDot.NPC);
-  DotAmount := Dots.Len();
+  Angle := Minimap.GetCompassAngle(False);
+  Theatre := GetTheatre();
+  Area := Theatres[Theatre].Maze;
 
-  if DotAmount < 1 then
-    Exit(Point(0, 0));
+  if (Theatre = -1) or (Dots.Len() = 0) then
+    Exit(False);
+
+  MazeRect := [RSW.WorldToMM(Pos, [Area.X1, Area.Y1], Angle),
+               RSW.WorldToMM(Pos, [Area.X2, Area.Y1], Angle),
+               RSW.WorldToMM(Pos, [Area.X2, Area.Y2], Angle),
+               RSW.WorldToMM(Pos, [Area.X1, Area.Y2], Angle)];
+
+  MazeRect := MazeRect.Expand(3);
 
   for i := 0 to Dots.Len()-1 do
-  begin
-    SearchArea := Box(Dots[i], 20, 20);
-    SearchArea.LimitTo(Mainscreen.Bounds());
-    ColorAmount := SRL.CountColor(MazeColor, SearchArea);
-    if ColorAmount > 300 then
-      Exit(RSW.MMToWorld(Dots[i]));
-  end;
-
-  Exit(Point(0, 0));
-end;
-
-function IsGuardianMoving(): Boolean;
-begin
-  Result := (GetGuardianInMaze() = Point(0, 0));
-end;
-
-function DrawGuardians(): Boolean;
-var
-  Finder: TRSObjectFinder;
-  ATPA, BATPA, MATPA: T2DPointArray;
-  Rect: TRectangle;
-  TPA: TPointArray;
-  Bds: TBox;
-  i: Int32;
-begin
-  Finder.Grow := 4;
-  Finder.ClusterDistance := 100;
-  Finder.ColorClusters += [CTS2(8682362, 7, 0.26, 0.12),
-                           CTS2(10724270, 6, 6.54, 0.26), 10];
-
-  ATPA := Mainscreen.FindObject(Finder);
-  RSClient.Image.DrawAtpa(atpa);
-  sLEEP(1000);
-  rscLIENT.IMAGE.CLEAR();
-end;
-
-function FindGuardian(WorldDot: TPoint; FinalStep: Boolean = False): Boolean;
-var
-  Finder: TRSObjectFinder;
-  ATPA, BATPA, MATPA: T2DPointArray;
-  Rect: TRectangle;
-  TPA: TPointArray;
-  Bds: TBox;
-  i: Int32;
-begin
-  Finder.Grow := 4;
-  Finder.ClusterDistance := 100;
-  Finder.ColorClusters += [CTS2(8682362, 7, 0.26, 0.12),
-                           CTS2(10724270, 6, 6.54, 0.26), 10];
-
-  WriteLn('Test');
-
-  if Finalstep then
-    if Magic.IsSelected(ERSSpell.TELEKINETIC_GRAB) then
-      Magic.Deselect();
-
-  for i := 0 to 4 do
-  begin
-    if WorldDot <> Point(0, 0) then
+    if MazeRect.Contains(Dots[i]) then
     begin
-      Rect := RSW.GetTileMS(WorldDot).Expand(4);
-      Bds := Rect.Bounds();
-      Bds.LimitTo(Mainscreen.Bounds());
-      ATPA := Mainscreen.FindObject(Finder, Bds);
+      Location := RSW.MMToWorld(Dots[i]);
+      Exit(True);
     end;
 
-    if ATPA.Len() = 0 then
-    begin
-      Bds := Mainscreen.Bounds();
-      Bds.X2 := Bds.X2 - 65;
-      BATPA := Mainscreen.FindObject(Finder, Bds);
-      ATPA.Combine(BATPA);
-    end;
-
-    ATPA.SortByMiddle(Mainscreen.Center());
-    RSClient.Image.DrawATPA(atpa);
-
-    for TPA in ATPA do
-    begin
-      Mouse.HumanMove(TPA.Mean());
-      if FinalStep then
-        if Mainscreen.IsUpText('New', 195) then
-          Exit(True);
-
-      if Mainscreen.IsUpText('Maze G', 195) and Mainscreen.IsUpText('Teleki', 195) then
-        Exit(True);
-    end;
-
-    KeyboardRotate();
-  end;
   Exit(False);
 end;
 
-function GrabGuardian(MazeCenter: TPoint): Boolean;
+function FindGuardian(FinalStep: Boolean = False): Boolean;
 var
-  i: Int32;
-  Dots, TPA: TPointArray;
-  GuardianDot: TPoint;
+  GuardianWorldPoint: TPoint;
+  ATPA: T2DPointArray;
+  F: TRSObjectFinder;
+  Rect: TRectangle;
+  TPA: TPointArray;
+  Bds: TBox;
+begin
+  F.Grow := 4;
+  F.ClusterDistance := 100;
+  F.ColorClusters += [CTS2(8682362, 7, 0.26, 0.12), CTS2(10724270, 6, 6.54, 0.26), 10];
+
+  if FindMazePoint(GuardianWorldPoint) then
+  begin
+    Rect := RSW.GetTileMS(GuardianWorldPoint).Expand(4);
+    Bds := Rect.Bounds();
+    Bds.LimitTo(Mainscreen.Bounds());
+    ATPA := Mainscreen.FindObject(F, Bds);
+  end;
+
+  if ATPA.Len() = 0 then
+  begin
+    Bds := Mainscreen.Bounds();
+    Bds.X2 := Bds.X2 - 65;
+    ATPA := Mainscreen.FindObject(F, Bds);
+  end;
+
+  if ATPA.Len() = 0 then
+    Exit(False)
+  else
+    ATPA.SortByMiddle(Mainscreen.Center());
+
+  for TPA in ATPA do
+  begin
+    Mouse.HumanMove(TPA.Mean());
+    if FinalStep then
+      if Mainscreen.IsUpText('New', 195) then
+        Exit(True);
+
+    if Mainscreen.IsUpText('Maze G', 195) and Mainscreen.IsUpText('Teleki', 195) then
+      Exit(True);
+  end;
+end;
+
+procedure GrabGuardian();
 begin
   if not Magic.IsSelected(ERSSpell.TELEKINETIC_GRAB) then
     Magic.CastSpell(ERSSpell.TELEKINETIC_GRAB);
 
-  WaitUntil(not IsGuardianMoving(), 250, 7757);
-
-  for i := 0 to 4 do
+  for 0 to 7 do
   begin
-    GuardianDot := GetGuardianInMaze();
-    if FindGuardian(GuardianDot) then
+    if FindGuardian() then
     begin
       Mouse.Click(MOUSE_LEFT);
       XPBar.WaitXP();
       Exit();
     end;
+    KeyboardRotate();
   end;
+  WriteDebug('Failed to grab Guardian!');
 end;
 
-function FinishTheatre(Maze: TBox): Boolean;
+function FinishTheatre(): Boolean;
 var
-  i, SolvedTheatre: Int32;
-  Dots, TPA: TPointArray;
-  GuardianDot: TPoint;
+  SolvedTheatre: Int32;
 begin
   if Magic.IsSelected(ERSSpell.TELEKINETIC_GRAB) then
     Magic.DeSelect();
 
   SolvedTheatre := GetTheatre();
 
-  for i := 0 to 4 do
-  begin
-    GuardianDot := GetGuardianInMaze();
-    if FindGuardian(GuardianDot, True) then
+  for 0 to 4 do
+    if FindGuardian(True) then
       begin
         Mouse.Click(MOUSE_LEFT);
         WaitUntil(SolvedTheatre <> GetTheatre(), 250, 8750);
-        Antiban.DoAntiban();
         Exit(True);
       end;
-  end;
-  WriteDebug(ToStr('Failed to Finish Theatre!', i));
+
+  WriteDebug(ToStr('Failed to Finish Theatre!'));
   Exit(False);
 end;
 
 procedure PlayTelekinetic();
 var
-  i, Theatre: Int32;
+  Theatre, i, xp: Int32;
 begin
   Theatre := GetTheatre();
 
@@ -609,30 +543,39 @@ begin
 
   for i := 0 to High(Theatres[Theatre].Steps) do
   begin
+    if i = High(Theatres[Theatre].Steps) then
+	    xp := XPBar.Read();
+
     Antiban.DoAntiban(False, False);
     StepMazeTile(Theatres[Theatre].Maze, Theatres[Theatre].Steps[i]);
-    GrabGuardian(Theatres[Theatre].Maze.Center());
+    GrabGuardian();
+
     if i = High(Theatres[Theatre].Steps) then
-      WaitUntil(not IsGuardianMoving(), 250, 7757);
+      WaitUntil(XPBar.Read() > (xp + 200), 250, 7757);
   end;
-  if FinishTheatre(Theatres[Theatre].Maze) then
+
+  if FinishTheatre() then
     WriteDebug(ToStr('Successfully solved Theatre: ', Theatre))
   else
     Logout.ClickLogout();
 end;
 
-procedure JoinTelekinetic();
+procedure EnterRoom();
 begin
   if not InLobby() then
     Exit();
 
-  TelekineticStatue.WalkClick();
+  case Mode of
+	  EMode.TELEKINETIC: TelekineticStatue.WalkClick();
+	  EMode.GRAVEYARD: GraveyardStatue.WalkClick();
+    EMode.ALCHEMY: AlchemyStatue.WalkClick();
+    EMode.ENCHANT: EnchantStatue.WalkClick();
+  end;
+
   WaitUntil(not InLobby(), 250, 8775);
 end;
 
 procedure MTA();
-var
-  State: EState;
 begin
   Antiban.DoAntiban(False, False);
 
@@ -640,7 +583,7 @@ begin
     Login.LoginPlayer();
 
   CalculateXP();
-  State := GetState(Mode);
+  State := GetState();
 
   if ReportTimer.ElapsedTime > 60000 then
     PrintProgress();
@@ -648,20 +591,20 @@ begin
   WriteDebug(ToStr('State: ', State));
 
   case State of
-    Estate.JOIN_TELEKINETIC: JoinTelekinetic();
+    Estate.JOIN_TELEKINETIC: EnterRoom();
     EState.PLAY_TELEKINETIC: PlayTelekinetic();
     Estate.EXIT_TELEKINETIC: Logout.ClickLogout();
 
+    Estate.JOIN_GRAVEYARD: EnterRoom();
     EState.PLAY_GRAVEYARD: Wait(1000);
-    Estate.JOIN_GRAVEYARD: Wait(1000);
     EState.EXIT_GRAVEYARD: Wait(1000);
 
+    Estate.JOIN_ALCHEMY: EnterRoom();
     EState.PLAY_ALCHEMY: Wait(1000);
-    Estate.JOIN_ALCHEMY: Wait(1000);
     EState.EXIT_ALCHEMY: Wait(1000);
 
+    Estate.JOIN_ENCHANT: EnterRoom();
     EState.PLAY_ENCHANT: Wait(1000);
-    Estate.JOIN_ENCHANT: Wait(1000);
     EState.EXIT_ENCHANT: Wait(1000);
   end;
 end;
