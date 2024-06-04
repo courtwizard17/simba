@@ -19,7 +19,7 @@ type
   end;
 
 const
-  Mode = EMode.ENCHANT;
+  Mode = EMode.ALCHEMY;
 
 var
   State: EState;
@@ -758,9 +758,17 @@ begin
     GrabBones();
 end;
 
-procedure PlayAlchemy();
+function ShouldDepositCoins(): Boolean;
+var
+  Coins: Int32 := Inventory.CountItemStack('Coins');
 begin
+  if (Coins > 5000) then
+    Exit(True);
 
+  if (Coins > 2500) and SRL.Dice(5) then
+    Exit(True);
+
+  Exit(False);
 end;
 
 procedure DepositOrbs();
@@ -794,10 +802,10 @@ var
   Pos: TPoint := RSW.GetMyPos();
   EmptySlots: Int32 := Inventory.CountEmptySlots();
 begin
-  if Mainscreen.IsUpText('Take') then
+  if Mainscreen.IsUpText('Take') and not Inventory.IsFull() then
   begin
     Mouse.Click(MOUSE_LEFT);
-    WaitUntil(EmptySlots < Inventory.CountEmptySlots(), 250, 4567);
+    WaitUntil(EmptySlots > Inventory.CountEmptySlots(), 250, 4567);
     Exit();
   end;
 
@@ -805,7 +813,7 @@ begin
     RSW.WalkBlind(ShapePile.Coordinates[0]);
 
   ShapePile.Click();
-  WaitUntil(EmptySlots < Inventory.CountEmptySlots(), 250, 4567);
+  WaitUntil(EmptySlots > Inventory.CountEmptySlots(), 250, 4567);
 end;
 
 procedure PlayEnchant();
@@ -842,6 +850,68 @@ begin
   end;
 
   WaitUntil(not InLobby(), 250, 8775);
+end;
+
+procedure DepositCoins();
+begin
+  RSW.WalkBlind([AlchemyDeposit.Coordinates[0].X, AlchemyDeposit.Coordinates[0].Y+6]);
+  AlchemyDeposit.Click();
+  WaitUntil(not Inventory.ContainsItem('Coins'), 250, 35250);
+end;
+
+procedure AlchItems();
+var
+  Slots: TIntegerArray;
+  Slot: Integer;
+begin
+  if Inventory.FindItems(['Leather boots', 'Adamant kiteshield', 'Adamant med helm',
+                          'Emerald', 'Rune longsword'], Slots) then
+    for Slot in Slots do
+    begin
+      Antiban.DoAntiban();
+      Magic.CastSpell(ERSSpell.HIGH_LEVEL_ALCHEMY);
+      WaitEx(650, 525);
+      Inventory.ClickSlot(Slot, '>');
+      WaitEx(2150, 825);
+    end;
+end;
+
+procedure GatherAlches();
+var
+  Pos: TPoint := RSW.GetMyPos();
+  EmptySlots: Int32 := Inventory.CountEmptySlots();
+  Dte, Dtw: Double;
+begin
+  Dte := Pos.DistanceTo(EastCupboard.Coordinates[0]);
+  Dtw := Pos.DistanceTo(WestCupboard.Coordinates[0]);
+
+  if Dte < Dtw then
+  begin
+    EastCupboard.SelectOption(['Take-5']);
+    if WaitUntil(EmptySlots > Inventory.CountEmptySlots(), 250, 8500) then
+      Exit()
+    else
+      WestCupboard.SelectOption(['Take-5']);
+      WaitUntil(EmptySlots > Inventory.CountEmptySlots(), 250, 8500)
+  end else
+  begin
+    WestCupboard.SelectOption(['Take-5']);
+    if WaitUntil(EmptySlots > Inventory.CountEmptySlots(), 250, 8500) then
+      Exit()
+    else
+      EastCupboard.SelectOption(['Take-5']);
+      WaitUntil(EmptySlots > Inventory.CountEmptySlots(), 250, 8500)
+  end;
+end;
+
+procedure PlayAlchemy();
+begin
+  if ShouldDepositCoins() then
+    DepositCoins()
+  else if Inventory.IsFull() then
+    AlchItems()
+  else
+    GatherAlches();
 end;
 
 procedure MTA();
