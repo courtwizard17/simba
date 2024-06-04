@@ -19,7 +19,7 @@ type
   end;
 
 const
-  Mode = EMode.TELEKINETIC;
+  Mode = EMode.ENCHANT;
 
 var
   State: EState;
@@ -28,9 +28,9 @@ var
   StartXP, CurrentXP, GainedXP: Int32;
   AlchemyArea, LobbyArea, GraveyardArea, EnchantArea: TBox;
   AlchemyStatue, TelekineticStatue, GraveyardStatue, EnchantStatue,
-  AlchemyExit, GraveyardExit, EnchantExit, EnchantDeposit,
+  AlchemyExit, GraveyardExit, EnchantExit, DepositHole,
   AlchemyDeposit, WestCupboard, EastCupboard, ShapePile: TRSObject;
-  BoneSpell: ERSSpell;
+  BoneSpell, EnchantSpell: ERSSpell;
   Fruit: TRSItem;
   Theatres: Array [0..9] of TTheatre;
 
@@ -147,7 +147,7 @@ begin
   if not FileExists(AppPath+'\Includes\WaspLib\osr\walker\maps\mta.png') then
     DownloadMap(MapURL, AppPath+'\Includes\WaspLib\osr\walker\maps\mta.png');
 
-  RSW.Setup('mta', 2);
+  RSW.Setup('mta', 4);
 end;
 
 function GetTheatre(): Int32;
@@ -263,36 +263,85 @@ begin
   with EnchantStatue do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(2, [[989, 615]]);
+    Setup(2, [[990, 616]]);
     SetupUpText(['Enchant']);
   end;
 
   with TelekineticStatue do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(2, [[1003, 629]]);
+    Setup(2, [[1012, 628]]);
     SetupUpText(['Telekinetic']);
   end;
 
   with AlchemyStatue do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(2, [[1005, 603]]);
+    Setup(2, [[1012, 604]]);
     SetupUpText(['Alchemy']);
   end;
 
   with GraveyardStatue do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(2, [[1023, 615]]);
+    Setup(2, [[1024, 616]]);
     SetupUpText(['Graveyard']);
   end;
 
   with GraveyardExit do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(2, [[139, 633]]);
+    Setup(2, [[140, 634]]);
     SetupUpText(['Exit']);
+  end;
+
+  with AlchemyExit do
+  begin
+    Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
+    Setup(2, [[690, 720]]);
+    SetupUpText(['Exit']);
+  end;
+
+  with EnchantExit do
+  begin
+    Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
+    Setup(2, [[380, 654]]);
+    SetupUpText(['Exit']);
+  end;
+
+  with ShapePile do
+  begin
+    Finder.Colors += CTS2(2992063, 4, 0.26, 3.03);
+    Setup(2, [[376, 598]]);
+    SetupUpText(['Cube']);
+  end;
+
+  with DepositHole do
+  begin
+    Finder.Colors += CTS2(5724769, 25, 0.21, 0.13);
+    Setup(4, [[420, 654]]);
+    SetupUpText(['Deposit']);
+  end;
+
+  with AlchemyDeposit do
+  begin
+    Finder.Colors += CTS2(10463656, 7, 0.50, 0.30);
+    Setup(2, [[700, 628]]);
+    SetupUpText(['Deposit']);
+  end;
+
+  with EastCupboard do
+  begin
+    Finder.Colors += CTS2(8029828, 20, 0.25, 0.13);
+    Setup(2, [[718, 652]]);
+    SetupUpText(['Cup']);
+  end;
+
+  with WestCupboard do
+  begin
+    Finder.Colors += CTS2(8029828, 20, 0.25, 0.13);
+    Setup(2, [[684, 652]]);
+    SetupUpText(['Cup']);
   end;
 end;
 
@@ -308,7 +357,20 @@ begin
   case Mode of
     EMode.ALCHEMY:
     begin
+      if Pos.InBox(LobbyArea) then
+        Exit(JOIN_ALCHEMY);
 
+      if GetTheatre > -1 then
+        Exit(EXIT_TELEKINETIC);
+
+      if Pos.InBox(GraveyardArea) then
+        Exit(EXIT_GRAVEYARD);
+
+      if Pos.InBox(AlchemyArea) then
+        Exit(PLAY_ALCHEMY);
+
+      if Pos.InBox(EnchantArea) then
+        Exit(EXIT_ENCHANT);
     end;
 
     EMode.TELEKINETIC:
@@ -327,8 +389,6 @@ begin
 
       if Pos.InBox(EnchantArea) then
         Exit(EXIT_ENCHANT);
-
-      WriteDebug('In an unknown area.');
     end;
 
     EMode.GRAVEYARD:
@@ -347,8 +407,6 @@ begin
 
       if Pos.InBox(EnchantArea) then
         Exit(EXIT_ENCHANT);
-
-      WriteDebug('In an unknown area.');
     end;
 
     EMode.ENCHANT:
@@ -367,8 +425,6 @@ begin
 
       if GetTheatre() > -1 then
         Exit(EXIT_TELEKINETIC);
-
-      WriteDebug('In an unknown area.');
     end;
   end;
 end;
@@ -449,6 +505,8 @@ begin
     Fruit := 'Banana';
   end;
 
+  EnchantSpell := ERSSpell.LVL5_ENCHANT;
+
   Mouse.Speed := Random(19, 24);
   Mouse.Wind := Random(1, 3);
   RSW.AdaptiveWalk := True;
@@ -485,7 +543,7 @@ begin
                RSW.WorldToMM(Pos, [Area.X2, Area.Y2], Angle),
                RSW.WorldToMM(Pos, [Area.X1, Area.Y2], Angle)];
 
-  MazeRect := MazeRect.Expand(3);
+  MazeRect := MazeRect.Expand(6);
 
   for i := 0 to Dots.Len()-1 do
     if MazeRect.Contains(Dots[i]) then
@@ -495,6 +553,12 @@ begin
     end;
 
   Exit(False);
+end;
+
+procedure WaitGuardian();
+var f: TPoint;
+begin
+  WaitUntil(FindMazePoint(f), 250, 2775);
 end;
 
 function FindGuardian(FinalStep: Boolean = False): Boolean;
@@ -520,6 +584,7 @@ begin
 
   if ATPA.Len() = 0 then
   begin
+    WriteDebug('Force searching Guardian.');
     Bds := Mainscreen.Bounds();
     Bds.X2 := Bds.X2 - 65;
     ATPA := Mainscreen.FindObject(F, Bds);
@@ -546,6 +611,8 @@ procedure GrabGuardian();
 begin
   if not Magic.IsSelected(ERSSpell.TELEKINETIC_GRAB) then
     Magic.CastSpell(ERSSpell.TELEKINETIC_GRAB);
+
+  WaitGuardian();
 
   for 0 to 7 do
   begin
@@ -614,7 +681,7 @@ end;
 procedure DepositFruit();
 var
   Pos: TPoint := RSW.GetMyPos();
-  DepositChuteLocation: TPoint := [105, 637];
+  DepositChuteLocation: TPoint := [104, 638];
   ChuteRect: TRectangle;
 begin
   if Pos.DistanceTo(DepositChuteLocation) > 18 then
@@ -644,7 +711,7 @@ procedure GrabBones();
 var
   Pos: TPoint := RSW.GetMyPos();
   Bones: Int32 := CountBones();
-  BonePileLocation: TPoint := [95, 645];
+  BonePileLocation: TPoint := [96, 646];
   BonePileRect: TRectangle;
 begin
   if Mainscreen.IsUpText('Grab Bone') then
@@ -691,6 +758,77 @@ begin
     GrabBones();
 end;
 
+procedure PlayAlchemy();
+begin
+
+end;
+
+procedure DepositOrbs();
+begin
+  RSW.WalkBlind([DepositHole.Coordinates[0].X, DepositHole.Coordinates[0].Y+4]);
+  DepositHole.Click();
+  WaitUntil(not Inventory.ContainsItem('Orb'), 250, 35250);
+end;
+
+function WaitEnchant(): Boolean;
+begin
+  Antiban.DoAntiban(False, False);
+  Result := Inventory.ContainsItem('Cube');
+end;
+
+function CountCubes(): Int32;
+begin
+  Result := Inventory.CountItem('Cube');
+end;
+
+procedure EnchantCubes();
+begin
+  Magic.CastSpell(EnchantSpell);
+  WaitEx(250, 225);
+  Inventory.ClickItem('Cube', '>');
+  WaitUntil(not WaitEnchant(), 250, 139420);
+end;
+
+procedure GatherCubes();
+var
+  Pos: TPoint := RSW.GetMyPos();
+  EmptySlots: Int32 := Inventory.CountEmptySlots();
+begin
+  if Mainscreen.IsUpText('Take') then
+  begin
+    Mouse.Click(MOUSE_LEFT);
+    WaitUntil(EmptySlots < Inventory.CountEmptySlots(), 250, 4567);
+    Exit();
+  end;
+
+  if Pos.DistanceTo(ShapePile.Coordinates[0]) > 18 then
+    RSW.WalkBlind(ShapePile.Coordinates[0]);
+
+  ShapePile.Click();
+  WaitUntil(EmptySlots < Inventory.CountEmptySlots(), 250, 4567);
+end;
+
+procedure PlayEnchant();
+begin
+  if Inventory.ContainsItem('Orb') then
+    DepositOrbs()
+  else if Inventory.ContainsItem('Cube') and Inventory.IsFull() then
+    EnchantCubes()
+  else
+    GatherCubes();
+end;
+
+procedure ExitRoom(Room: EMode);
+begin
+  case Room of
+    EMode.ALCHEMY: AlchemyExit.WalkClick();
+    EMode.ENCHANT: EnchantExit.WalkClick();
+    EMode.GRAVEYARD: GraveyardExit.WalkClick();
+  end;
+
+  WaitUntil(InLobby(), 250, 10000);
+end;
+
 procedure EnterRoom();
 begin
   if not InLobby() then
@@ -726,15 +864,15 @@ begin
 
     Estate.JOIN_GRAVEYARD: EnterRoom();
     EState.PLAY_GRAVEYARD: PlayGraveyard();
-    EState.EXIT_GRAVEYARD: Wait(1000);
+    EState.EXIT_GRAVEYARD: ExitRoom(EMode.GRAVEYARD);
 
     Estate.JOIN_ALCHEMY: EnterRoom();
-    EState.PLAY_ALCHEMY: Wait(1000);
-    EState.EXIT_ALCHEMY: Wait(1000);
+    EState.PLAY_ALCHEMY: PlayAlchemy();
+    EState.EXIT_ALCHEMY: ExitRoom(EMode.ALCHEMY);
 
     Estate.JOIN_ENCHANT: EnterRoom();
-    EState.PLAY_ENCHANT: Wait(1000);
-    EState.EXIT_ENCHANT: Wait(1000);
+    EState.PLAY_ENCHANT: PlayEnchant();
+    EState.EXIT_ENCHANT: ExitRoom(EMode.ENCHANT);
   end;
 end;
 
