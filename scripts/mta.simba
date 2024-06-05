@@ -20,7 +20,6 @@ type
 
 const
   Mode = EMode.GRAVEYARD;
-  B2P = True;
 
 var
   State: EState;
@@ -496,14 +495,20 @@ begin
   Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
   Options.SetZoomLevel(Random(0, 1));
 
-  if B2P then
+  if Mode = EMode.GRAVEYARD then
   begin
-    BoneSpell := ERSSpell.BONES_TO_PEACHES;
-    Fruit := 'Peach';
-  end else
-  begin
-    BoneSpell := ERSSpell.BONES_TO_BANANAS;
-    Fruit := 'Banana';
+    Magic.Open();
+    if Magic.CanActivate(ERSSpell.BONES_TO_PEACHES) then
+    begin
+      WriteDebug('We are able to cast B2P, setting the spell.');
+      BoneSpell := ERSSpell.BONES_TO_PEACHES;
+      Fruit := 'Peach';
+    end else
+    begin
+      WriteDebug('We are NOT able to cast B2P, setting the spell.');
+      BoneSpell := ERSSpell.BONES_TO_BANANAS;
+      Fruit := 'Banana';
+    end;
   end;
 
   EnchantSpell := ERSSpell.LVL5_ENCHANT;
@@ -924,9 +929,7 @@ begin
 
   CalculateXP();
   PrintProgress();
-
   State := GetState();
-  WriteDebug(ToStr('State: ', State));
 
   case State of
     Estate.JOIN_TELEKINETIC: EnterRoom();
