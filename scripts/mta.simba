@@ -19,7 +19,8 @@ type
   end;
 
 const
-  Mode = EMode.ALCHEMY;
+  Mode = EMode.GRAVEYARD;
+  B2P = True;
 
 var
   State: EState;
@@ -495,7 +496,7 @@ begin
   Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
   Options.SetZoomLevel(Random(0, 1));
 
-  if Magic.CanActivate(ERSSpell.BONES_TO_PEACHES) then
+  if B2P then
   begin
     BoneSpell := ERSSpell.BONES_TO_PEACHES;
     Fruit := 'Peach';
@@ -951,7 +952,7 @@ begin
   repeat
     begin
       MTA();
-      WaitEx(99, 95);
+      WaitEx(225, 195);
     end;
   until false;
 end.
