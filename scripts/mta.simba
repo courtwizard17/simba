@@ -816,7 +816,7 @@ var
   TPA: TPointArray;
   Scanned: String;
   SearchBox: TBox;
-  i: Int32;
+  i, n: Int32;
 begin
     Filter := TOCRColorFilter.Create([45620], [30]);
     SRL.FindColors(TPA, CTS2(45620, 6, 0.14, 0.01), ValueBox);
@@ -832,7 +832,12 @@ begin
     begin
       SearchBox := ATPA[i].Bounds().Expand(2);
       Scanned := OCR.Recognize(SearchBox, Filter, RS_FONT_PLAIN_11);
-      Result += StrToInt(Scanned);
+      try
+        n := StrToInt(Scanned);
+      except
+        n := 0;
+      end;
+      Result += n;
     end;
 end;
 
@@ -950,8 +955,8 @@ var
   TPA: TPointArray;
   Bds: TBox;
 begin
-    Rect := RSW.GetTileMS(CupboardTile);
-    Bds := Rect.Bounds().Expand(2);
+    Rect := RSW.GetTileMS(CupboardTile, 4);
+    Bds := Rect.Bounds().Expand(4);
     Bds.LimitTo(Mainscreen.Bounds());
     SRL.FindColors(TPA, CTS2(8029828, 20, 0.25, 0.13), Bds);
 
