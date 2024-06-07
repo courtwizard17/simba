@@ -19,18 +19,19 @@ type
   end;
 
 const
-  Mode = EMode.ENCHANT;
+  Mode = EMode.ALCHEMY;
 
 var
   State: EState;
   RSW: TRSWalker;
   Fruit: TRSItem;
+  Items: TRSItemArray;
   Timer, ReportTimer: TStopwatch;
   StartXP, CurrentXP, GainedXP: Int32;
   AlchemyArea, LobbyArea, GraveyardArea, EnchantArea: TBox;
   AlchemyStatue, TelekineticStatue, GraveyardStatue, EnchantStatue,
   AlchemyExit, GraveyardExit, EnchantExit, DepositHole,
-  AlchemyDeposit, WestCupboard, EastCupboard, ShapePile: TRSObject;
+  AlchemyDeposit, ShapePile: TRSObject;
   BoneSpell, EnchantSpell: ERSSpell;
   Theatres: Array [0..9] of TTheatre;
 
@@ -329,20 +330,6 @@ begin
     Setup(2, [[700, 628]]);
     SetupUpText(['Deposit']);
   end;
-
-  with EastCupboard do
-  begin
-    Finder.Colors += CTS2(8029828, 20, 0.25, 0.13);
-    Setup(2, [[718, 652]]);
-    SetupUpText(['Cup']);
-  end;
-
-  with WestCupboard do
-  begin
-    Finder.Colors += CTS2(8029828, 20, 0.25, 0.13);
-    Setup(2, [[684, 652]]);
-    SetupUpText(['Cup']);
-  end;
 end;
 
 function InLobby(): Boolean;
@@ -512,6 +499,7 @@ begin
   end;
 
   EnchantSpell := ERSSpell.LVL5_ENCHANT;
+  Items := ['Leather boots', 'Adamant kiteshield', 'Adamant med helm', 'Emerald', 'Rune longsword'];
 
   Mouse.Speed := Random(19, 24);
   Mouse.Wind := Random(1, 3);
@@ -773,10 +761,10 @@ function ShouldDepositCoins(): Boolean;
 var
   Coins: Int32 := Inventory.CountItemStack('Coins');
 begin
-  if (Coins > 5000) then
+  if (Coins > 10000) then
     Exit(True);
 
-  if (Coins > 2500) and SRL.Dice(5) then
+  if (Coins > 6000) and SRL.Dice(5) then
     Exit(True);
 
   Exit(False);
@@ -817,6 +805,50 @@ begin
     Inventory.ClickItem('Cube', '>');
     WaitUntil(not WaitEnchant(False), 250, 139420);
   end;
+end;
+
+(* Credit: Slacky ~ https://pastebin.com/Ut2NkjRT *)
+function GetItemPrices(): TIntegerArray;
+var
+  ValueBox: TBox := [490, 98, 517, 211];
+  Filter: TOCRColorFilter;
+  ATPA: T2DPointArray;
+  TPA: TPointArray;
+  Scanned: String;
+  SearchBox: TBox;
+  i: Int32;
+begin
+    Filter := TOCRColorFilter.Create([45620], [30]);
+    SRL.FindColors(TPA, CTS2(45620, 6, 0.14, 0.01), ValueBox);
+    ATPA := TPA.Cluster(20, 2);
+
+    if ATPA.Len() = 0 then
+      Exit();
+
+    ATPA.SortByX(True);
+    ATPA.SortByY(True);
+
+    for i :=0 to High(ATPA) do
+    begin
+      SearchBox := ATPA[i].Bounds().Expand(2);
+      Scanned := OCR.Recognize(SearchBox, Filter, RS_FONT_PLAIN_11);
+      Result += StrToInt(Scanned);
+    end;
+end;
+
+function GetHighestValueSlot(): Int32;
+var
+  SortedValues: TIntegerArray := [30, 15, 8, 5, 1];
+  CurrentValues, Order, Slots: TIntegerArray;
+  i, j, f: Int32;
+begin
+  CurrentValues := GetItemPrices();
+
+  for i := 0 to High(SortedValues) do
+    for j := 0 to High(CurrentValues) do
+      if SortedValues[i] = CurrentValues[j] then
+        if Inventory.FindItem(Items[j], f) then
+          Exit(f);
 end;
 
 procedure GatherItems();
@@ -894,45 +926,67 @@ end;
 procedure AlchItems();
 var
   Slots: TIntegerArray;
-  Slot: Integer;
+  Slot, i: Int32;
 begin
-  if Inventory.FindItems(['Leather boots', 'Adamant kiteshield', 'Adamant med helm',
-                          'Emerald', 'Rune longsword'], Slots) then
-    for Slot in Slots do
+  if Inventory.FindItems(Items, Slots) then
+    for i := 0 to SRL.NormalRange(1, Slots.Len()) do
     begin
       Antiban.DoAntiban();
-      Magic.CastSpell(ERSSpell.HIGH_LEVEL_ALCHEMY);
+
+      if not Magic.CastSpell(ERSSpell.HIGH_LEVEL_ALCHEMY) then
+        Continue();
+
       WaitEx(650, 325);
+      Slot := GetHighestValueSlot();
       Inventory.ClickSlot(Slot, '>');
       WaitEx(2150, 525);
     end;
 end;
 
+function TakeFromCupboard(CupboardTile: TPoint): Boolean;
+var
+  EmptySlots: Int32 := CountEmpties();
+  Rect: TRectangle;
+  TPA: TPointArray;
+  Bds: TBox;
+begin
+    Rect := RSW.GetTileMS(CupboardTile);
+    Bds := Rect.Bounds().Expand(2);
+    Bds.LimitTo(Mainscreen.Bounds());
+    SRL.FindColors(TPA, CTS2(8029828, 20, 0.25, 0.13), Bds);
+
+    if TPA.Len() = 0 then
+      Exit(False);
+
+    Mouse.HumanMove(TPA.Mean());
+
+    if not Mainscreen.IsUpText('Cupb', 205) then
+      Exit(False);
+
+    Mouse.Click(MOUSE_RIGHT);
+    ChooseOption.Select('Take-5');
+
+    Result := WaitUntil(EmptySlots > CountEmpties(), 250, 3250);
+end;
+
 procedure GatherAlches();
 var
+  Cupboards: TPointArray := [[718, 652], [718, 668], [718, 684]];
   Pos: TPoint := RSW.GetMyPos();
-  EmptySlots: Int32 := CountEmpties();
-  Dte, Dtw: Double;
+  First: Boolean;
+  i: Int32;
 begin
-  Dte := Pos.DistanceTo(EastCupboard.Coordinates[0]);
-  Dtw := Pos.DistanceTo(WestCupboard.Coordinates[0]);
+  Cupboards.Sort(Pos);
 
-  if Dte < Dtw then
+  for i := 0 to High(Cupboards) do
   begin
-    EastCupboard.SelectOption(['Take-5']);
-    if WaitUntil(EmptySlots > CountEmpties(), 250, 5200) then
-      Exit()
-    else
-      WestCupboard.SelectOption(['Take-5']);
-      WaitUntil(EmptySlots > CountEmpties(), 250, 5200)
-  end else
-  begin
-    WestCupboard.SelectOption(['Take-5']);
-    if WaitUntil(EmptySlots > CountEmpties(), 250, 5200) then
-      Exit()
-    else
-      EastCupboard.SelectOption(['Take-5']);
-      WaitUntil(EmptySlots > CountEmpties(), 250, 5200)
+    if Inventory.IsFull() then
+      Exit();
+
+    First := TakeFromCupboard(Cupboards[i]);
+
+    if SRL.Dice(50) and First then
+      TakeFromCupboard(Cupboards[i]);
   end;
 end;
 
@@ -940,7 +994,7 @@ procedure PlayAlchemy();
 begin
   if ShouldDepositCoins() then
     DepositCoins()
-  else if Inventory.IsFull() then
+  else if CountEmpties() < 10 then
     AlchItems()
   else
     GatherAlches();
@@ -974,54 +1028,6 @@ begin
     EState.PLAY_ENCHANT: PlayEnchant();
     EState.EXIT_ENCHANT: ExitRoom(EMode.ENCHANT);
   end;
-end;
-
-// cupboards clockwise: [[718, 652], [718, 668], [718, 684], [682, 652], [682, 668], [682, 684]]
-
-(* Credit: Slacky ~ https://pastebin.com/Ut2NkjRT *)
-function GetItemPrices(): TIntegerArray;
-var
-  ValueBox: TBox := [490, 98, 517, 211];
-  Filter: TOCRColorFilter;
-  ATPA: T2DPointArray;
-  TPA: TPointArray;
-  Scanned: String;
-  SearchBox: TBox;
-  i: Int32;
-begin
-    Filter := TOCRColorFilter.Create([45620], [30]);
-    SRL.FindColors(TPA, CTS2(45620, 6, 0.14, 0.01), ValueBox);
-    ATPA := TPA.Cluster(20, 2);
-
-    if ATPA.Len() = 0 then
-      Exit();
-
-    ATPA.SortByX(True);
-    ATPA.SortByY(True);
-
-    for i :=0 to High(ATPA) do
-    begin
-      SearchBox := ATPA[i].Bounds().Expand(2);
-      Scanned := OCR.Recognize(SearchBox, Filter, RS_FONT_PLAIN_11);
-      Result += StrToInt(Scanned);
-    end;
-end;
-
-function GetHighestValueSlot(): Int32;
-var
-  Items: TRSItemArray := ['Leather boots', 'Adamant kiteshield',
-                          'Adamant med helm', 'Emerald', 'Rune longsword'];
-  SortedValues: TIntegerArray := [30, 15, 8, 5, 1];
-  CurrentValues, Order, Slots: TIntegerArray;
-  i, j, f: Int32;
-begin
-  CurrentValues := GetItemPrices();
-
-  for i := 0 to High(SortedValues) do
-    for j := 0 to High(CurrentValues) do
-      if SortedValues[i] = CurrentValues[j] then
-        if Inventory.FindItem(Items[j], f) then
-          Exit(f);
 end;
 
 begin
