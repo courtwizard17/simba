@@ -10,7 +10,7 @@ type
   COOKLOCATION = ( TRAWLER, HOSIDIUS );
 
 var
-  Location: COOKLOCATION := COOKLOCATION.HOSIDIUS;
+  Location: COOKLOCATION := COOKLOCATION.TRAWLER;
   RawFoods: TRSItemArray := [ 'Raw anchovies', 'Raw shrimps', 'Raw trout', 'Raw salmon', 'Raw tuna',
                               'Raw lobster', 'Raw bass', 'Raw swordfish', 'Raw monkfish', 'Raw shark',
                               'Raw sea turtle', 'Raw manta ray', 'Raw karambwan' ];
@@ -20,17 +20,19 @@ var
   OvenObj, BankObj: TRSObject;
 
 procedure PauseTimer(Task: PBreakTask);
-var T: PBreakTask;
+var
+  t: PBreakTask;
 begin
-  Timer.Pause;
-  T := Task;
+  Timer.Pause();
+  t := Task;
 end;
 
 procedure ResumeTimer(Task: PBreakTask);
-var T: PBreakTask;
+var
+  t: PBreakTask;
 begin
-  Timer.Resume;
-  T := Task;
+  Timer.Resume();
+  t := Task;
 end;
 
 function Fantiban(): Boolean;
@@ -40,7 +42,8 @@ begin
 end;
 
 procedure CalculateXP();
-var t: Int32;
+var
+  t: Int32;
 begin
   CurrentXP := XPBar.Read();
   t         := GainedXP;
@@ -117,7 +120,7 @@ begin
 
   if Location = COOKLOCATION.TRAWLER then
   begin
-    BankObj.SetupUpText(['Bank']);
+    BankObj.SetupUpText(['chest']);
     BankObj.Setup(2, [[6036, 3796]]);
     BankObj.Finder.Colors += CTS2(3688797, 9, 0.05, 0.05);
     OvenObj.SetupUpText(['Cook']);
@@ -126,7 +129,7 @@ begin
   end
   else if Location = COOKLOCATION.HOSIDIUS then
   begin
-    BankObj.SetupUpText(['Bank', 'chest']);
+    BankObj.SetupUpText(['chest']);
     BankObj.Setup(2, [[2092, 2000]]);
     BankObj.Finder.Colors += CTS2(1985116, 8, 0.04, 1.39);
     OvenObj.SetupUpText(['Cook', 'Clay']);
