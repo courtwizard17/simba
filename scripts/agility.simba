@@ -1,4 +1,4 @@
-program faladorhopper;
+program agility;
 {$I WaspLib/osr.simba}
 {$I ../Includes/BHI.simba}
 
@@ -6,14 +6,18 @@ begin
   Login.PlayerIndex := 0;
 end;
 
+type
+  ECourse = (SEERS, FALLY);
+
 const
+  COURSE      = SEERS;
   BREAKAFTER  = 60;
   BREAKFOR    = 6;
   FOODNAME    = 'Lobster';
 
   BIRDHOUSES  = True;
-  INTERVAL    = 20 * ONE_MINUTE;
-  SEED        = 'Onion seed';
+  INTERVAL    = 0;
+  SEED        = 'Hammerstone seed';
 
 type
   TObstacle = record
@@ -22,14 +26,14 @@ type
     UpText: TStringArray;
     Area: TBox;
     Color: TCTS2Color;
-    Height: Int32;
+    Height, Wait: Int32;
   end;
 
 var
-  HopperRSW: TRSWalker;
+  AgilityRSW: TRSWalker;
   Timer, ReportTimer: TStopwatch;
   StartXP, CurrentXP, GainedXP, Marks, Step, MinHP: Int32;
-  Obstacles: Array [0..12] of TObstacle;
+  Obstacles: Array of TObstacle;
   Food: TRSItem;
   BankObject: TRSObject;
   ReturnSpell: ERSSpell;
@@ -37,21 +41,24 @@ var
   Logs: ERSLogType;
 
 procedure PauseTimer(Task: PBreakTask);
-var T: PBreakTask;
+var
+  t: PBreakTask;
 begin
-  Timer.Pause;
-  T := Task;
+  Timer.Pause();
+  t := Task;
 end;
 
 procedure ResumeTimer(Task: PBreakTask);
-var T: PBreakTask;
+var
+  t: PBreakTask;
 begin
-  Timer.Resume;
-  T := Task;
+  Timer.Resume();
+  t := Task;
 end;
 
 procedure CalculateXP();
-var t: Int32;
+var
+  t: Int32;
 begin
   CurrentXP := XPBar.Read();
   t         := GainedXP;
@@ -83,17 +90,16 @@ end;
 
 procedure KeyboardRotate();
 var
-  Arrow: Integer;
-  Duration: Int64;
+  a: Integer;
 begin
   if SRL.Dice(50) then
-    Arrow := $25
+    a := $25
   else
-    Arrow := $27;
-  Duration := SRL.NormalRange(250, 2250);
-  Keyboard.KeyDown(Arrow);
-  Sleep(Duration);
-  Keyboard.KeyUp(Arrow);
+    a := $27;
+
+  Keyboard.KeyDown(a);
+  Sleep(SRL.NormalRange(250, 1550));
+  Keyboard.KeyUp(a);
 end;
 
 procedure HealthManagement();
@@ -101,7 +107,7 @@ begin
   if not RSClient.IsLoggedIn() then
     Exit();
 
-  if Minimap.GetHPLevel() < MinHP then
+  if Minimap.GetHPPercent < 50 then
     if Inventory.ContainsItem(Food) then
       Inventory.ClickItem(Food)
     else
@@ -110,7 +116,7 @@ end;
 
 procedure TAntiban.DoLoseFocus();
 begin
-  Self.LoseFocus(SRL.NormalRange(800,3500));
+  Self.LoseFocus(SRL.NormalRange(250, 1900));
 end;
 
 function TRectangle.RandomMean(): TPoint;
@@ -130,57 +136,25 @@ end;
 procedure SetupAntiban();
 begin
   Antiban.Skills := [ERSSKILL.AGILITY, ERSSKILL.TOTAL];
-  Antiban.AddTask(ONE_MINUTE*2,   @Mouse.RandomMovement, 1);
-  Antiban.AddTask(ONE_MINUTE*6,   @Antiban.HoverMSPlayers, 1);
-  Antiban.AddTask(ONE_MINUTE*3,   @Antiban.DoLoseFocus, 1);
-  Antiban.AddTask(ONE_MINUTE*7,   @Antiban.RandomRotate, 1);
-  Antiban.AddTask(ONE_MINUTE*7,   @KeyboardRotate, 1);
-  Antiban.AddTask(ONE_MINUTE*8,   @Antiban.HoverMSNPCs, 1);
-  Antiban.AddTask(ONE_MINUTE*25,  @Antiban.HoverSkills, 1);
-  Antiban.AddBreak(ONE_SECOND * 100, ONE_SECOND * 8, 1, 0);
+  Antiban.AddTask(ONE_MINUTE * 2, @Mouse.RandomMovement, 1);
+  Antiban.AddTask(ONE_MINUTE * 9, @Antiban.HoverMSPlayers, 1);
+  Antiban.AddTask(ONE_MINUTE * 5, @Antiban.DoLoseFocus, 1);
+  Antiban.AddTask(ONE_MINUTE * 9, @Antiban.RandomRotate, 1);
+  Antiban.AddTask(ONE_MINUTE * 9, @KeyboardRotate, 1);
+  Antiban.AddTask(ONE_MINUTE * 9, @Antiban.HoverMSNPCs, 1);
+  Antiban.AddTask(ONE_MINUTE * 25, @Antiban.HoverSkills, 1);
+  Antiban.AddBreak(ONE_SECOND * 100, ONE_SECOND * 5, 1, 0);
   Antiban.AddBreak(BREAKAFTER * ONE_MINUTE, BREAKFOR * ONE_MINUTE, 0.3, 1);
   Antiban.OnStartBreak := @PauseTimer;
   Antiban.OnFinishBreak := @ResumeTimer;
 end;
 
-procedure InitiateScript();
+procedure SetupFalador();
 var
   FaladorCityBox: TBox := [7000, 2800, 7700, 3300];
   CourseAreaBox: TBox := [500, 4500, 1000, 5200];
-  FossilIslandBox: TBox := [8965, 717, 9634, 1441];
 begin
-  if not RSClient.IsLoggedIn() then
-    Login.LoginPlayer();
-
-  WaitUntil(RSClient.IsLoggedIn(), 250, 12000);
-  StartXP := XPBar.Read();
-
-  if StartXP < 1 then
-    TerminateScript('Failed to read XP, make sure XPBar is set up!');
-
-  Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
-  Options.SetZoomLevel(Random(0, 6));
-  MinHP := Floor(Minimap.GetHPLevel() * 0.6);
-
-  if BIRDHOUSES then
-  begin
-    Logs := BirdHouseRunner.GetLogForHunterLevel(Stats.GetLevel(ERSSkill.HUNTER, False));
-    WriteLn('Logtype for birdhouses based on level: ', ToStr(Logs));
-    BirdHouseRunner.Setup(Logs, SEED, False, INTERVAL, False);
-    BirdHouseRunner.Init();
-  end;
-
-  HopperRSW.SetupRegions([FaladorCityBox, CourseAreaBox, FossilIslandBox]);
-  SetupAntiban();
-
-  BankObject.SetupUpText(['Bank','Bank booth']);
-  BankObject.Setup(6, [[7444, 3032]]);
-  BankObject.Finder.Colors += CTS2(5929360, 10, 0.03, 0.93);
-  RuneArray := ['Law rune', 'Water rune', 'Air rune'];
-  ReturnSpell := ERSSpell.FALADOR_TELEPORT;
-
-  Mouse.Speed := SRL.NormalRange(12, 18);
-  Food := FOODNAME;
+  SetLength(Obstacles, 13);
 
   with Obstacles[0] do
   begin
@@ -197,6 +171,7 @@ begin
     UpText := ['Cross', 'ight'];
     Area := [832, 4769, 866, 4792];
     Height := 0;
+    Wait := 720;
   end;
   with Obstacles[2] do
   begin
@@ -212,7 +187,6 @@ begin
     Tile := [892, 4715];
     UpText := ['ump', 'Gap'];
     Area := [886, 4714, 908, 4734];
-    Height := 0;
   end;
   with Obstacles[4] do
   begin
@@ -220,7 +194,6 @@ begin
     Tile := [876, 4703];
     UpText := ['ump', 'Gap'];
     Area := [873, 4676, 901, 4713];
-    Height := 0;
   end;
   with Obstacles[5] do
   begin
@@ -228,7 +201,7 @@ begin
     Tile := [836, 4705];
     UpText := ['Cross', 'ight'];
     Area := [831, 4690, 869, 4713];
-    Height := 0;
+    Wait := 720;
   end;
   with Obstacles[6] do
   begin
@@ -236,7 +209,7 @@ begin
     Tile := [804, 4739];
     UpText := ['Cross', 'ight'];
     Area := [799, 4725, 823, 4749];
-    Height := 0;
+    Wait := 720;
   end;
   with Obstacles[7] do
   begin
@@ -244,7 +217,6 @@ begin
     Tile := [772, 4743];
     UpText := ['Jump', 'Gap'];
     Area := [730, 4713, 791, 4739];
-    Height := 0;
   end;
   with Obstacles[8] do
   begin
@@ -252,7 +224,6 @@ begin
     Tile := [760, 4771];
     UpText := ['ump', 'Ledge'];
     Area := [762, 4753, 797, 4785];
-    Height := 0;
   end;
   with Obstacles[9] do
   begin
@@ -268,7 +239,6 @@ begin
     Tile := [748, 4815];
     UpText := ['ump', 'Ledge'];
     Area := [735, 4782, 760, 4812];
-    Height := 0;
   end;
   with Obstacles[11] do
   begin
@@ -276,7 +246,6 @@ begin
     Tile := [772, 4819];
     UpText := ['ump', 'Ledge'];
     Area := [729, 4806, 769, 4837];
-    Height := 0;
   end;
   with Obstacles[12] do
   begin
@@ -284,8 +253,116 @@ begin
     Tile := [796, 4819];
     UpText := ['Jump', 'Edge'];
     Area := [769, 4803, 850, 4848];
-    Height := 0;
   end;
+
+  AgilityRSW.SetupRegions([FaladorCityBox, CourseAreaBox]);
+
+  BankObject.SetupUpText(['Bank','Bank booth']);
+  BankObject.Setup(6, [[7444, 3032]]);
+  BankObject.Finder.Colors += CTS2(5929360, 10, 0.03, 0.93);
+  RuneArray := ['Law rune', 'Water rune', 'Air rune'];
+  ReturnSpell := ERSSpell.FALADOR_TELEPORT;
+end;
+
+procedure SetupSeers();
+var
+  SeersCityBox: TBox := [6000, 2300, 6900, 2800];
+  CourseAreaBox: TBox := [200, 5000, 1000, 5800];
+begin
+  SetLength(Obstacles, 7);
+
+  with Obstacles[0] do
+  begin
+    Index := 0;
+    Tile := [6308, 2490];
+    UpText := ['Wall'];
+    Area := SeersCityBox;
+    Height := 2;
+  end;
+  with Obstacles[1] do
+  begin
+    Index := 1;
+    Tile := [534, 5346];
+    UpText := ['Jump', 'Gap'];
+    Area := [531, 5325, 590, 5373];
+  end;
+  with Obstacles[2] do
+  begin
+    Index := 2;
+    Tile := [762, 5368];
+    UpText := ['Cross', 'Tight'];
+    Area := [720, 5329, 800, 5382];
+    Height := 2;
+    Wait := 750;
+  end;
+  with Obstacles[3] do
+  begin
+    Index := 3;
+    Tile := [766, 5420];
+    UpText := ['ump', 'Gap'];
+    Area := [750, 5388, 800, 5433];
+  end;
+  with Obstacles[4] do
+  begin
+    Index := 4;
+    Tile := [876, 4703];
+    UpText := ['ump', 'Gap'];
+    Area := [873, 4676, 901, 4713];
+  end;
+  with Obstacles[5] do
+  begin
+    Index := 5;
+    Tile := [466, 5446];
+    UpText := ['ump', 'Gap'];
+    Area := [440, 5400, 555, 5467];
+  end;
+  with Obstacles[6] do
+  begin
+    Index := 6;
+    Tile := [734, 5468];
+    UpText := ['ump', 'Edge'];
+    Area := [666, 5452, 760, 5511];
+  end;
+
+  AgilityRSW.SetupRegions([SeersCityBox, CourseAreaBox]);
+
+  BankObject.SetupUpText(['nk boo','Bank booth']);
+  BankObject.Setup(6, [[6288, 2471]]);
+  BankObject.Finder.Colors += CTS2(6980239, 12, 0.03, 0.78);
+  RuneArray := ['Law rune', 'Air rune'];
+  ReturnSpell := ERSSpell.CAMELOT_TELEPORT;
+end;
+
+procedure InitiateScript();
+begin
+  if not RSClient.IsLoggedIn() then
+    Login.LoginPlayer();
+
+  WaitUntil(RSClient.IsLoggedIn(), 250, 12000);
+  StartXP := XPBar.Read();
+
+  if StartXP < 1 then
+    TerminateScript('Failed to read XP, make sure XPBar is set up!');
+
+  Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
+  Options.SetZoomLevel(Random(0, 6));
+
+  if BIRDHOUSES then
+  begin
+    Logs := BirdHouseRunner.GetLogForHunterLevel(Stats.GetLevel(ERSSkill.HUNTER, False));
+    WriteLn('Logtype for birdhouses based on level: ', ToStr(Logs));
+    BirdHouseRunner.Setup(Logs, SEED, False, INTERVAL, False);
+    BirdHouseRunner.Init();
+  end;
+
+  case Course of
+    FALLY: SetupFalador();
+    SEERS: SetupSeers();
+  end;
+
+  SetupAntiban();
+  Mouse.Speed := SRL.NormalRange(12, 18);
+  Food := FOODNAME;
 
   Timer.Start();
   ReportTimer.Start();
@@ -318,7 +395,7 @@ end;
 
 function GetStep(): Int32;
 var
-  Pos: TPoint := HopperRSW.GetMyPos();
+  Pos: TPoint := AgilityRSW.GetMyPos();
   i: Int32;
 begin
   for i := 0 to High(Obstacles) do
@@ -338,7 +415,7 @@ begin
   if not RSClient.IsLoggedIn() then
     Exit();
 
-  MSRect := HopperRSW.GetTileMS(Obs.Tile, Obs.Height);
+  MSRect := AgilityRSW.GetTileMS(Obs.Tile, Obs.Height);
   Bds := MSRect.Bounds().Expand(2);
 
   if not Mainscreen.Bounds.Contains(Bds) then
@@ -377,10 +454,9 @@ end;
 
 procedure GroundStep();
 var
-  Found: Boolean;
   Pos, StartTile: TPoint;
+  Found: Boolean;
   xp: Int32;
-  CourseAreaBox: TBox := [500, 4500, 1000, 5200];
 begin
   if not RSClient.IsLoggedIn() then
     Exit();
@@ -399,16 +475,13 @@ begin
     WaitUntil(xp < XPBar.Read(), 250, 12775);
   end else
   begin
-    Pos := HopperRSW.GetMyPos();
+    Pos := AgilityRSW.GetMyPos();
     StartTile := [Obstacles[0].Tile.X, Obstacles[0].Tile.Y + 4];
 
-    if CourseAreaBox.Contains(Pos) then
-      Exit();
-
     if Pos.DistanceTo(StartTile) > 128 then
-      HopperRSW.WebWalk(StartTile)
+      AgilityRSW.WebWalk(StartTile)
     else if Pos.DistanceTo(StartTile) > 32 then
-      HopperRSW.WalkBlind(StartTile)
+      AgilityRSW.WalkBlind(StartTile)
     else if SRL.Dice(50) then
       KeyboardRotate()
     else
@@ -418,44 +491,41 @@ end;
 
 procedure PickMarks(Step: Int32);
 var
-  MRect: TRectangle;
-  MTPA, Dots: TPointArray;
-  Dot: TPoint;
   MoGColor: TCTS2Color := CTS2(2141119, 1, 0.01, 0.01);
+  MTPA, Dots: TPointArray;
+  MRect: TRectangle;
+  Dot: TPoint;
   MBds: TBox;
   MoG: Int32;
 begin
-  WaitEx(555,  225);
+  Minimap.WaitFlag();
   Dots := Minimap.GetDots(ERSMinimapdot.ITEM);
-  if Dots.Len() > 0 then
+
+  if Dots.Len() = 0 then
+    Exit();
+
+  Dot := AgilityRSW.MMToWorld(Dots[0]);
+
+  if Obstacles[Step].Area.Contains(Dot) then
   begin
-    Dot := Dots[0];
-    Dot := HopperRSW.MMToWorld(Dot);
-    if Obstacles[Step].Area.Contains(Dot) then
-    begin
-      MRect := HopperRSW.GetTileMS(Dot).Expand(4);
-      DrawNeonRectangle(MRect);
-      MBds := MRect.Bounds();
-      MBds.LimitTo(Mainscreen.Bounds());
-      SRL.FindColors(MTPA, MoGColor, MBds);
-      if MTPA.Len() > 0 then
-      begin
-        MoG := Inventory.CountItemStack('Mark of grace');
-        Mouse.HumanMove(MTPA.Mean());
-        WaitEx(55, 25);
-        if Mainscreen.IsUpText(['Take M', 'ark of g']) then
-        begin
-          RSClient.Image.Clear();
-          Mouse.Click(MOUSE_LEFT);
+    MRect := AgilityRSW.GetTileMS(Dot).Expand(4);
+    MBds := MRect.Bounds();
+    MBds.LimitTo(Mainscreen.Bounds());
+    SRL.FindColors(MTPA, MoGColor, MBds);
 
-          if not WaitUntil(MoG < Inventory.CountItemStack('Mark of grace'), 250, 7500) then
-            Exit();
+    if MTPA.Len() = 0 then
+      Exit();
 
-          Marks += 1;
-          WaitEx(420, 69);
-        end;
-      end;
-    end;
+    MoG := Inventory.CountItemStack('Mark of grace');
+    Mouse.HumanMove(MTPA.Mean());
+
+    if not Mainscreen.IsUpText(['Take M', 'ark of g'], 195) then
+      Exit();
+
+    Mouse.Click(MOUSE_LEFT);
+
+    if WaitUntil(MoG < Inventory.CountItemStack('Mark of grace'), 250, 7500) then
+      Marks += 1;
   end;
 end;
 
@@ -469,18 +539,17 @@ begin
 
   hp := Minimap.GetHPLevel();
   xp := XPBar.Read();
+
   PickMarks(Step);
+
   Found := FindObstacle(Obstacles[Step]);
   RSClient.Image.Clear();
 
   if Found then
   begin
     Mouse.Click(MOUSE_LEFT);
-
-    if Obstacles[Step].UpText.Contains('ight') then
-      WaitEx(650, 125);
-
     WaitUntil((xp < XPBar.Read()) or (hp > Minimap.GetHPLevel()), 250, 12775);
+    Wait(Obstacles[Step].Wait);
   end else
     KeyboardRotate();
 end;
@@ -498,15 +567,15 @@ begin
     WriteDebug('Lost');
 end;
 
-procedure ScriptLoop();
+procedure Agility();
 begin
   Antiban.DoAntiban();
 
   if not RSClient.IsLoggedIn() then
     Login.LoginPlayer();
 
-  if Mainscreen.HasInterface() then
-    Mainscreen.CloseInterface(50);
+  if RSInterface.IsOpen() then
+    RSInterface.Close(50);
 
   HealthManagement();
   CalculateXP();
@@ -515,12 +584,12 @@ begin
   if ReportTimer.ElapsedTime > 60000 then
     PrintProgress();
 
-  if Step = -1 then
-    RecoverFromLost()
-  else if Step = 0 then
-    GroundStep()
-  else if Step > 0 then
+  case Step of
+    -1: RecoverFromLost();
+     0: GroundStep();
+  else
     NormalStep(Step);
+  end;
 end;
 
 function TBirdHouseInclude.OnStart() : Boolean; override;
@@ -532,9 +601,7 @@ begin
   Writeln("Birdhouse Include OnStart");
 
   for i := 0 to High(Antiban.Tasks) do
-  begin
     Antiban.Tasks[i].Countdown.Pause();
-  end;
 
   bankTimeout.Init(65000);
 
@@ -585,7 +652,7 @@ var
   i: Int32;
 begin
   Self.DebugLn("Birdhouse Include OnComplete");
-  ScriptWalker := @HopperRSW;
+  ScriptWalker := @AgilityRSW;
   Magic.CastSpell(ReturnSpell);
   WaitEx(6969, 420);
 
@@ -597,7 +664,7 @@ begin
   InitiateScript();
   repeat
     begin
-      ScriptLoop();
+      Agility();
       WaitEx(575, 505);
     end;
   until false;
