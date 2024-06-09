@@ -19,7 +19,9 @@ type
   end;
 
 const
-  Mode = EMode.ALCHEMY;
+  Mode = EMode.TELEKINETIC;
+  BREAKAFTER = 60;
+  BREAKFOR   = 6;
 
 var
   State: EState;
@@ -101,7 +103,7 @@ begin
     a := $27;
 
   Keyboard.KeyDown(a);
-  Sleep(SRL.NormalRange(250, 1750));
+  Sleep(SRL.NormalRange(250, 1550));
   Keyboard.KeyUp(a);
 end;
 
@@ -109,16 +111,16 @@ procedure PauseTimer(Task: PBreakTask);
 var
   t: PBreakTask;
 begin
-  Timer.Pause;
-  T := Task;
+  Timer.Pause();
+  t := Task;
 end;
 
 procedure ResumeTimer(Task: PBreakTask);
 var
   t: PBreakTask;
 begin
-  Timer.Resume;
-  T := Task;
+  Timer.Resume();
+  t := Task;
 end;
 
 procedure TAntiban.DoLoseFocus();
@@ -129,14 +131,14 @@ end;
 procedure SetupAntiban();
 begin
   Antiban.Skills := [ERSSKILL.MAGIC, ERSSKILL.TOTAL];
-  Antiban.AddTask(ONE_MINUTE*2, @Mouse.RandomMovement, 1);
-  Antiban.AddTask(ONE_MINUTE*6, @Antiban.HoverMSPlayers, 1);
-  Antiban.AddTask(ONE_MINUTE*3, @Antiban.DoLoseFocus, 1);
-  Antiban.AddTask(ONE_MINUTE*7, @Antiban.RandomRotate, 1);
-  Antiban.AddTask(ONE_MINUTE*7, @KeyboardRotate, 1);
-  Antiban.AddTask(ONE_MINUTE*8, @Antiban.HoverMSNPCs, 1);
-  Antiban.AddTask(ONE_MINUTE*25, @Antiban.HoverSkills, 1);
-  Antiban.AddBreak(40 * ONE_MINUTE, 6 * ONE_MINUTE, 0.3, 1);
+  Antiban.AddTask(ONE_MINUTE * 2,  @Mouse.RandomMovement, 1);
+  Antiban.AddTask(ONE_MINUTE * 10, @Antiban.HoverMSPlayers, 1);
+  Antiban.AddTask(ONE_MINUTE * 10, @Antiban.DoLoseFocus, 1);
+  Antiban.AddTask(ONE_MINUTE * 6,  @Antiban.RandomRotate, 1);
+  Antiban.AddTask(ONE_MINUTE * 10, @KeyboardRotate, 1);
+  Antiban.AddTask(ONE_MINUTE * 8,  @Antiban.HoverMSNPCs, 1);
+  Antiban.AddTask(ONE_MINUTE * 25, @Antiban.HoverSkills, 1);
+  Antiban.AddBreak(BREAKAFTER * ONE_MINUTE, BREAKFOR * ONE_MINUTE, 0.3, 1);
   Antiban.OnStartBreak := @PauseTimer;
   Antiban.OnFinishBreak := @ResumeTimer;
 end;
@@ -849,6 +851,9 @@ var
 begin
   CurrentValues := GetItemPrices();
 
+  if CurrentValues.Len() <> 5 then
+    Exit(1);
+
   for i := 0 to High(SortedValues) do
     for j := 0 to High(CurrentValues) do
       if SortedValues[i] = CurrentValues[j] then
@@ -941,10 +946,10 @@ begin
       if not Magic.CastSpell(ERSSpell.HIGH_LEVEL_ALCHEMY) then
         Continue();
 
-      WaitEx(650, 325);
+      WaitEx(555, 325);
       Slot := GetHighestValueSlot();
       Inventory.ClickSlot(Slot, '>');
-      WaitEx(2150, 525);
+      WaitEx(1775, 525);
     end;
 end;
 
@@ -955,23 +960,26 @@ var
   TPA: TPointArray;
   Bds: TBox;
 begin
-    Rect := RSW.GetTileMS(CupboardTile, 4);
-    Bds := Rect.Bounds().Expand(4);
-    Bds.LimitTo(Mainscreen.Bounds());
-    SRL.FindColors(TPA, CTS2(8029828, 20, 0.25, 0.13), Bds);
+  if Inventory.IsFull() then
+    Exit();
 
-    if TPA.Len() = 0 then
-      Exit(False);
+  Rect := RSW.GetTileMS(CupboardTile, 4);
+  Bds := Rect.Bounds().Expand(4);
+  Bds.LimitTo(Mainscreen.Bounds());
+  SRL.FindColors(TPA, CTS2(8029828, 20, 0.25, 0.13), Bds);
 
-    Mouse.HumanMove(TPA.Mean());
+  if TPA.Len() = 0 then
+    Exit(False);
 
-    if not Mainscreen.IsUpText('Cupb', 205) then
-      Exit(False);
+  Mouse.HumanMove(TPA.Mean());
 
-    Mouse.Click(MOUSE_RIGHT);
-    ChooseOption.Select('Take-5');
+  if not Mainscreen.IsUpText('Cupb', 205) then
+    Exit(False);
 
-    Result := WaitUntil(EmptySlots > CountEmpties(), 250, 3250);
+  Mouse.Click(MOUSE_RIGHT);
+  ChooseOption.Select('Take-5');
+
+  Result := WaitUntil(EmptySlots > CountEmpties(), 250, 2850);
 end;
 
 procedure GatherAlches();
@@ -985,9 +993,6 @@ begin
 
   for i := 0 to High(Cupboards) do
   begin
-    if Inventory.IsFull() then
-      Exit();
-
     First := TakeFromCupboard(Cupboards[i]);
 
     if SRL.Dice(50) and First then
@@ -1040,7 +1045,7 @@ begin
   repeat
     begin
       MTA();
-      WaitEx(225, 195);
+      WaitEx(175, 155);
     end;
   until false;
 end.
