@@ -20,7 +20,7 @@ type
   end;
 
 const
-  Mode = ENCHANT;
+  Mode = ALCHEMY;
 
   BREAKAFTER = 60;
   BREAKFOR   = 6;
@@ -306,7 +306,7 @@ begin
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
     Setup(2, [[1004, 604]]);
-    SetupUpText(['Alchemy']);
+    SetupUpText(['Alchemi']);
   end;
 
   with GraveyardStatue do
@@ -1000,10 +1000,10 @@ begin
       if not Magic.CastSpell(ERSSpell.HIGH_LEVEL_ALCHEMY) then
         Continue();
 
-      WaitEx(555, 325);
+      WaitEx(555, 125);
       Slot := GetHighestValueSlot();
       Inventory.ClickSlot(Slot, '>');
-      WaitEx(1775, 525);
+      WaitEx(1975, 325);
     end;
 end;
 
