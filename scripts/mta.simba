@@ -20,7 +20,7 @@ type
   end;
 
 const
-  Mode = ALCHEMY;
+  Mode = GRAVEYARD;
 
   BREAKAFTER = 60;
   BREAKFOR   = 6;
@@ -291,49 +291,49 @@ begin
   with EnchantStatue do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(2, [[990, 616]]);
+    Setup(0, [[990, 616]]);
     SetupUpText(['Enchant']);
   end;
 
   with TelekineticStatue do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(2, [[1004, 628]]);
+    Setup(0, [[1004, 628]]);
     SetupUpText(['Telekinetic']);
   end;
 
   with AlchemyStatue do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(2, [[1004, 604]]);
+    Setup(0, [[1004, 604]]);
     SetupUpText(['Alchemi']);
   end;
 
   with GraveyardStatue do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(2, [[1024, 616]]);
+    Setup(0, [[1024, 616]]);
     SetupUpText(['Graveyard']);
   end;
 
   with GraveyardExit do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(2, [[140, 634]]);
+    Setup(0, [[140, 634]]);
     SetupUpText(['Exit']);
   end;
 
   with AlchemyExit do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(2, [[690, 720]]);
+    Setup(0, [[690, 720]]);
     SetupUpText(['Exit']);
   end;
 
   with EnchantExit do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(2, [[380, 654]]);
+    Setup(0, [[380, 654]]);
     SetupUpText(['Exit']);
   end;
 
@@ -920,7 +920,7 @@ var
   EmptySlots: Int32 := CountEmpties();
   Pos: TPoint := RSW.GetMyPos();
 begin
-  if Mainscreen.IsUpText('Take') and not Inventory.IsFull() then
+  if Mainscreen.IsUpText('m Cub') and not Inventory.IsFull() then
   begin
     Mouse.Click(MOUSE_LEFT);
     WaitUntil(EmptySlots > CountEmpties(), 250, 4567);
@@ -971,8 +971,8 @@ begin
     Exit();
 
   case Mode of
-	  TELEKINETIC: TelekineticStatue.WalkClick();
-	  GRAVEYARD: GraveyardStatue.WalkClick();
+    TELEKINETIC: TelekineticStatue.WalkClick();
+    GRAVEYARD: GraveyardStatue.WalkClick();
     ALCHEMY: AlchemyStatue.WalkClick();
     ENCHANT: EnchantStatue.WalkClick();
   end;
