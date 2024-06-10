@@ -13,10 +13,11 @@ const
   COURSE      = SEERS;
   BREAKAFTER  = 60;
   BREAKFOR    = 6;
+  EXTRA_ANTIBAN = False;
   FOODNAME    = 'Lobster';
 
   BIRDHOUSES  = True;
-  INTERVAL    = 0;
+  INTERVAL    = ONE_HOUR;
   SEED        = 'Hammerstone seed';
 
 type
@@ -30,15 +31,16 @@ type
   end;
 
 var
-  AgilityRSW: TRSWalker;
+  StartXP, CurrentXP, GainedXP, Marks,
+  WaitRand, Step, WaitTime: Int32;
   Timer, ReportTimer: TStopwatch;
-  StartXP, CurrentXP, GainedXP, Marks, Step, MinHP: Int32;
   Obstacles: Array of TObstacle;
-  Food: TRSItem;
+  RuneArray: TRSItemArray;
+  AgilityRSW: TRSWalker;
   BankObject: TRSObject;
   ReturnSpell: ERSSpell;
-  RuneArray: TRSItemArray;
   Logs: ERSLogType;
+  Food: TRSItem;
 
 procedure PauseTimer(Task: PBreakTask);
 var
@@ -143,7 +145,10 @@ begin
   Antiban.AddTask(ONE_MINUTE * 9, @KeyboardRotate, 1);
   Antiban.AddTask(ONE_MINUTE * 9, @Antiban.HoverMSNPCs, 1);
   Antiban.AddTask(ONE_MINUTE * 25, @Antiban.HoverSkills, 1);
-  Antiban.AddBreak(ONE_SECOND * 100, ONE_SECOND * 5, 1, 0);
+
+  if EXTRA_ANTIBAN then
+    Antiban.AddBreak(ONE_SECOND * 100, ONE_SECOND * 5, 1, 0);
+
   Antiban.AddBreak(BREAKAFTER * ONE_MINUTE, BREAKFOR * ONE_MINUTE, 0.3, 1);
   Antiban.OnStartBreak := @PauseTimer;
   Antiban.OnFinishBreak := @ResumeTimer;
@@ -360,6 +365,20 @@ begin
     SEERS: SetupSeers();
   end;
 
+  if EXTRA_ANTIBAN then
+    WaitTime := 500
+  else
+    WaitTime := 100;
+
+  WaitRand := (WaitTime - 50);
+
+  AgilityRSW.AdaptiveWalk := True;
+
+  if EXTRA_ANTIBAN then
+    Mouse.Speed := Random(11, 15)
+  else
+    Mouse.Speed := Random(20, 26);
+
   SetupAntiban();
   Mouse.Speed := SRL.NormalRange(12, 18);
   Food := FOODNAME;
@@ -477,6 +496,9 @@ begin
   begin
     Pos := AgilityRSW.GetMyPos();
     StartTile := [Obstacles[0].Tile.X, Obstacles[0].Tile.Y + 4];
+
+    if not Pos.InBox(Obstacles[0].Area) then
+      Exit();
 
     if Pos.DistanceTo(StartTile) > 128 then
       AgilityRSW.WebWalk(StartTile)
@@ -665,7 +687,7 @@ begin
   repeat
     begin
       Agility();
-      WaitEx(575, 505);
+      WaitEx(WaitTime, (WaitTime - 50));
     end;
   until false;
 end.
