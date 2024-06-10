@@ -160,7 +160,7 @@ end;
 
 procedure SetupWalker();
 var
-  MapURL: String := 'https://i.imgur.com/6Q49VlM.png';
+  MapURL: String := 'https://i.imgur.com/SKuaSrF.png';
 begin
   if not FileExists(AppPath+'\Includes\WaspLib\osr\walker\maps\mta.png') then
     DownloadMap(MapURL, AppPath+'\Includes\WaspLib\osr\walker\maps\mta.png');
@@ -283,7 +283,7 @@ begin
   GraveyardArea := [30, 524, 257, 768];
   EnchantArea := [311, 548, 543, 767];
   AlchemyArea := [608, 580, 800, 770];
-  LobbyArea := [967, 591, 1048, 718];
+  LobbyArea := [970, 650, 1050, 770];
 end;
 
 procedure SetupObjects();
@@ -291,28 +291,28 @@ begin
   with EnchantStatue do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(0, [[990, 616]]);
+    Setup(0, [[992, 676]]);
     SetupUpText(['Enchant']);
   end;
 
   with TelekineticStatue do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(0, [[1004, 628]]);
+    Setup(0, [[1004, 688]]);
     SetupUpText(['Telekinetic']);
   end;
 
   with AlchemyStatue do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(0, [[1004, 604]]);
+    Setup(0, [[1004, 664]]);
     SetupUpText(['Alchemi']);
   end;
 
   with GraveyardStatue do
   begin
     Finder.Colors += CTS2(8490379, 16, 0.25, 0.13);
-    Setup(0, [[1024, 616]]);
+    Setup(0, [[1016, 676]]);
     SetupUpText(['Graveyard']);
   end;
 
