@@ -3,22 +3,23 @@ program agility;
 {$I ../Includes/BHI.simba}
 
 begin
-  Login.PlayerIndex := 0;
+  Login.PlayerIndex := 1;
 end;
 
 type
-  ECourse = (SEERS, FALLY);
+  ECourse = (SEERS, FALLY, DRAYNOR);
 
 const
-  COURSE      = SEERS;
+  COURSE      = DRAYNOR;
   BREAKAFTER  = 60;
   BREAKFOR    = 6;
-  EXTRA_ANTIBAN = False;
   FOODNAME    = 'Lobster';
 
-  BIRDHOUSES  = True;
+  BIRDHOUSES  = False;
   INTERVAL    = ONE_HOUR;
   SEED        = 'Hammerstone seed';
+
+  EXTRA_ANTIBAN = True; (* Adds longer wait times and short breaks, "non-focused player" *)
 
 type
   TObstacle = record
@@ -152,6 +153,78 @@ begin
   Antiban.AddBreak(BREAKAFTER * ONE_MINUTE, BREAKFOR * ONE_MINUTE, 0.3, 1);
   Antiban.OnStartBreak := @PauseTimer;
   Antiban.OnFinishBreak := @ResumeTimer;
+end;
+
+procedure SetupDraynor();
+var
+  DraynorCityBox: TBox := [7500, 3200, 8564, 3721];
+  CourseAreaBox: TBox := [175, 4265, 400, 4500];
+begin
+  SetLength(Obstacles, 7);
+
+  with Obstacles[0] do
+  begin
+    Index := 0;
+    Tile := [7804, 3332];
+    UpText := ['Rough', 'wall'];
+    Area := DraynorCityBox;
+    Height := 2;
+  end;
+  with Obstacles[1] do
+  begin
+    Index := 1;
+    Tile := [276, 4322];
+    UpText := ['Cross', 'ight'];
+    Area := [270, 4302, 300, 4326];
+    Wait := 720;
+  end;
+  with Obstacles[2] do
+  begin
+    Index := 2;
+    Tile := [252, 4326];
+    UpText := ['Cross', 'ight'];
+    Area := [222, 4309, 270, 4346];
+    Wait := 720;
+  end;
+  with Obstacles[3] do
+  begin
+    Index := 3;
+    Tile := [240, 4374];
+    UpText := ['Balance'];
+    Color := CTS2(15685, 1, 0.01, 0.01);
+    Area := [236, 4354, 267, 4375];
+    Height := -2;
+  end;
+  with Obstacles[4] do
+  begin
+    Index := 4;
+    Tile := [236, 4408];
+    UpText := ['ump'];
+    Area := [228, 4382, 241, 4408];
+    Height := 2;
+  end;
+  with Obstacles[5] do
+  begin
+    Index := 5;
+    Tile := [264, 4410];
+    UpText := ['Jump'];
+    Area := [229, 4406, 265, 4413];
+  end;
+  with Obstacles[6] do
+  begin
+    Index := 6;
+    Tile := [292, 4386];
+    UpText := ['down'];
+    Area := [264, 4381, 300, 4415];
+  end;
+
+  AgilityRSW.SetupRegions([DraynorCityBox, CourseAreaBox]);
+
+  BankObject.SetupUpText(['Bank','Bank booth']);
+  BankObject.Setup(6, [[7756, 3468]]);
+  BankObject.Finder.Colors += CTS2(3822977, 15, 0.45, 2.38);
+  RuneArray := ['Law rune', 'Earth rune', 'Air rune'];
+  ReturnSpell := ERSSpell.LUMBRIDGE_TELEPORT;
 end;
 
 procedure SetupFalador();
@@ -363,6 +436,7 @@ begin
   case Course of
     FALLY: SetupFalador();
     SEERS: SetupSeers();
+    DRAYNOR: SetupDraynor();
   end;
 
   if EXTRA_ANTIBAN then
@@ -495,7 +569,7 @@ begin
   end else
   begin
     Pos := AgilityRSW.GetMyPos();
-    StartTile := [Obstacles[0].Tile.X, Obstacles[0].Tile.Y + 4];
+    StartTile := Obstacles[0].Tile;
 
     if not Pos.InBox(Obstacles[0].Area) then
       Exit();
@@ -603,7 +677,7 @@ begin
   CalculateXP();
   Step := GetStep();
 
-  if ReportTimer.ElapsedTime > 60000 then
+  if ReportTimer.ElapsedTime() > 60000 then
     PrintProgress();
 
   case Step of
