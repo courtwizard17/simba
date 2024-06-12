@@ -7,13 +7,13 @@ begin
 end;
 
 type
-  ECourse = (SEERS, FALLY, DRAYNOR);
+  ECourse = (SEERS, FALLY, DRAYNOR, VARRO);
 
 const
-  COURSE      = DRAYNOR;
+  COURSE      = FALLY;
   BREAKAFTER  = 60;
   BREAKFOR    = 6;
-  FOODNAME    = 'Lobster';
+  FOODNAME    = 'Jug of wine';
 
   BIRDHOUSES  = False;
   INTERVAL    = ONE_HOUR;
@@ -227,6 +227,95 @@ begin
   ReturnSpell := ERSSpell.LUMBRIDGE_TELEPORT;
 end;
 
+procedure SetupVarrock();
+var
+  VarrockCityBox: TBox := [7900, 2300, 9000, 3000];
+  CourseAreaBox: TBox := [50, 4000, 1410, 5700];
+begin
+  SetLength(Obstacles, 9);
+
+  with Obstacles[0] do
+  begin
+    Index := 0;
+    Tile := [8276, 2792];
+    UpText := ['Climb R', 'ough'];
+    Height := 2;
+    Area := VarrockCityBox;
+  end;
+  with Obstacles[1] do
+  begin
+    Index := 1;
+    Tile := [306, 4908];
+    UpText := ['Cross', 'othe'];
+    Height := 0;
+    Area := [302, 4882, 346, 4931];
+  end;
+  with Obstacles[2] do
+  begin
+    Index := 2;
+    Tile := [254, 4900];
+    Height := 0;
+    UpText := ['Leap', 'eap G'];
+    Area := [253, 4877, 291, 4913];
+  end;
+  with Obstacles[3] do
+  begin
+    Index := 3;
+    Height := 0;
+    Tile := [582, 4906];
+    UpText := ['Balance W', 'ce W'];
+    Area := [578, 4894, 620, 4924];
+  end;
+  with Obstacles[4] do
+  begin
+    Index := 4;
+    Height := 0;
+    Tile := [238, 4960];
+    UpText := ['Leap', 'Gap'];
+    Area := [212, 4932, 254, 4961];
+  end;
+  with Obstacles[5] do
+  begin
+    Index := 5;
+    Height := 0;
+    Tile := [290, 4964];
+    UpText := ['Leap', 'Gap'];
+    Area := [165, 4951, 300, 5069];
+  end;
+  with Obstacles[6] do
+  begin
+    Index := 6;
+    Height := 0;
+    Tile := [386, 4956];
+    UpText := ['eap', 'Gap'];
+    Area := [301, 4935, 395, 5020];
+  end;
+  with Obstacles[7] do
+  begin
+    Index := 7;
+    Height := 2;
+    Tile := [406, 4928];
+    UpText := ['Hurdle', 'edge'];
+    Area := [390, 4932, 426, 5000];
+  end;
+  with Obstacles[8] do
+  begin
+    Index := 8;
+    Tile := [402, 4900];
+    Height := 0;
+    UpText := ['ump-', 'Edge'];
+    Area := [386, 4891, 435, 4929];
+  end;
+
+  AgilityRSW.SetupRegions([VarrockCityBox, CourseAreaBox]);
+
+  BankObject.SetupUpText(['Bank','Bank booth']);
+  BankObject.Setup(6, [[8136, 2704]]);
+  BankObject.Finder.Colors += CTS2(4880003, 11, 0.03, 1.38);
+  RuneArray := ['Law rune', 'Fire rune', 'Air rune'];
+  ReturnSpell := ERSSpell.VARROCK_TELEPORT;
+end;
+
 procedure SetupFalador();
 var
   FaladorCityBox: TBox := [7000, 2800, 7700, 3300];
@@ -437,6 +526,7 @@ begin
     FALLY: SetupFalador();
     SEERS: SetupSeers();
     DRAYNOR: SetupDraynor();
+    VARRO: SetupVarrock();
   end;
 
   if EXTRA_ANTIBAN then
