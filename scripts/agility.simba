@@ -10,7 +10,7 @@ type
   ECourse = (SEERS, FALLY, DRAYNOR, VARRO);
 
 const
-  COURSE      = FALLY;
+  COURSE      = SEERS;
   BREAKAFTER  = 60;
   BREAKFOR    = 6;
   FOODNAME    = 'Jug of wine';
@@ -24,7 +24,7 @@ const
 type
   TObstacle = record
     Index: Int32;
-    Tile: TPoint;
+    Tile, WalkTile: TPoint;
     UpText: TStringArray;
     Area: TBox;
     Color: TCTS2Color;
@@ -166,6 +166,7 @@ begin
   begin
     Index := 0;
     Tile := [7804, 3332];
+    WalkTile := [7808, 3336];
     UpText := ['Rough', 'wall'];
     Area := DraynorCityBox;
     Height := 2;
@@ -238,6 +239,7 @@ begin
   begin
     Index := 0;
     Tile := [8276, 2792];
+    WalkTile := [8276, 2792];
     UpText := ['Climb R', 'ough'];
     Height := 2;
     Area := VarrockCityBox;
@@ -327,6 +329,7 @@ begin
   begin
     Index := 0;
     Tile := [7536, 3082];
+    WalkTile := [7536, 3082];
     UpText := ['Rough', 'wall'];
     Area := FaladorCityBox;
     Height := 2;
@@ -442,6 +445,7 @@ begin
   begin
     Index := 0;
     Tile := [6308, 2490];
+    WalkTile := [6308, 2510];
     UpText := ['Wall'];
     Area := SeersCityBox;
     Height := 2;
@@ -659,7 +663,7 @@ begin
   end else
   begin
     Pos := AgilityRSW.GetMyPos();
-    StartTile := Obstacles[0].Tile;
+    StartTile := Obstacles[0].WalkTile;
 
     if not Pos.InBox(Obstacles[0].Area) then
       Exit();
