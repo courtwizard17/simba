@@ -1,0 +1,257 @@
+program cooker;
+{$I WaspLib/osr.simba}
+
+begin
+  Login.PlayerIndex := 0;
+  ItemFinder.Similarity := 0.999999;
+end;
+
+type
+  EMode = (STEEL, CBALLS);
+
+const
+  Mode = CBALLS;
+
+var
+  RSW: TRSWalker;
+  Timer, ReportTimer: TStopwatch;
+  FurnaceObj, BankObj: TRSObject;
+  StartXP, CurrentXP, GainedXP: Int32;
+
+procedure PrintProgress();
+var
+  Hours: Double;
+  Total, Hourly: String;
+begin
+  if ReportTimer.ElapsedTime < 60000 then
+    Exit();
+
+  Hours := (GetTimeRunning()/3600000);
+  Total := ToStr(Round((GainedXP/1000), 0), ' k ');
+  Hourly := ToStr('(', Round((GainedXP/(Hours*1000)), 1), ' k / hr)');
+  WriteLn(SRL.TimeStamp(), ':[Experience]: ', Total, Hourly);
+
+  ReportTimer.Reset();
+end;
+
+procedure TAntiban.DoLoseFocus();
+begin
+  Self.LoseFocus(SRL.NormalRange(800,3500));
+end;
+
+procedure CalculateXP();
+var
+  TempValue: Int32;
+begin
+  CurrentXP := XPBar.Read();
+  TempValue := GainedXP;
+  GainedXP  := (CurrentXP - StartXP);
+
+  if GainedXP > TempValue then
+    Timer.Reset();
+
+  if Timer.ElapsedTime > 300000 then
+    TerminateScript('No Gained XP in 5 mins, stopping!');
+end;
+
+procedure KeyboardRotate();
+var
+  a: Integer;
+begin
+  if SRL.Dice(50) then
+    a := $25
+  else
+    a := $27;
+
+  Keyboard.KeyDown(a);
+  Sleep(SRL.NormalRange(250, 1550));
+  Keyboard.KeyUp(a);
+end;
+
+procedure PauseTimer(Task: PBreakTask);
+var
+  t: PBreakTask;
+begin
+  Timer.Pause();
+  t := Task;
+end;
+
+procedure ResumeTimer(Task: PBreakTask);
+var
+  t: PBreakTask;
+begin
+  Timer.Resume();
+  t := Task;
+end;
+
+procedure SetupAntiban();
+begin
+  Antiban.Skills := [ERSSKILL.SMITHING, ERSSKILL.TOTAL];
+  Antiban.AddTask(ONE_MINUTE*2,   @Mouse.RandomMovement);
+  Antiban.AddTask(ONE_MINUTE*5,   @Antiban.HoverMSPlayers);
+  Antiban.AddTask(ONE_MINUTE*3,   @Antiban.DoLoseFocus);
+  Antiban.AddTask(ONE_MINUTE*7,   @KeyboardRotate);
+  Antiban.AddTask(ONE_MINUTE*8,   @Antiban.HoverMSNPCs);
+  Antiban.AddTask(ONE_MINUTE*25,  @Antiban.HoverSkills);
+  Antiban.AddBreak(77 * ONE_MINUTE, 8 * ONE_MINUTE, 0.3, 1);
+  Antiban.OnStartBreak := @PauseTimer;
+  Antiban.OnFinishBreak := @ResumeTimer;
+end;
+
+procedure InitiateScript();
+begin
+  if not RSClient.IsLoggedIn() then
+    Login.LoginPlayer();
+
+  WaitUntil(RSClient.IsLoggedIn(), 250, 12000);
+  StartXP := XPBar.Read();
+
+  if StartXP < 1 then
+    TerminateScript('Failed to read XP, make sure XPBar is set up!');
+
+  Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
+  Options.SetZoomLevel(Random(0, 6));
+  RSW.Setup();
+  SetupAntiban();
+
+  BankObj.SetupUpText(['Bank']);
+  BankObj.Setup(2, [[7784, 2476]]);
+  BankObj.Finder.Colors += CTS2(4218254, 19, 0.36, 2.08);
+
+  FurnaceObj.SetupUpText(['Smelt', 'Furnace']);
+  FurnaceObj.Setup(2, [[7832, 2452]]);
+  FurnaceObj.Finder.Colors += CTS2(3103086, 8, 0.64, 1.27);
+
+  Timer.Start();
+  ReportTimer.Start();
+end;
+
+function HasOres(): Boolean;
+begin
+  if not Inventory.ContainsItem('Iron ore') then
+    Exit(False);
+
+  if Inventory.CountItem('Coal') < 2 then
+    Exit(False);
+
+  Exit(True);
+end;
+
+function HasMaterials(): Boolean;
+begin
+  case Mode of
+    CBALLS: Result := Inventory.ContainsItem('Steel bar');
+    STEEL: Result := HasOres();
+  end;
+end;
+
+function WaitProcessing(): Boolean;
+begin
+  Antiban.DoAntiban(False, False);
+  case Mode of
+    STEEL: Result := Inventory.CountItem('Coal') < 2;
+    CBALLS: Result := not Inventory.ContainsItem('Steel bar');
+  end;
+end;
+
+procedure Process();
+begin
+  if not FurnaceObj.Click() then
+  begin
+    if SRL.Dice(50) then
+      KeyboardRotate()
+    else
+      Antiban.RandomRotate();
+
+    Exit();
+  end;
+
+  WaitUntil(Make.IsOpen(), 200, 8000);
+
+  if not Make.IsOpen() then
+    Exit();
+
+  WaitEx(675, 666);
+
+  case Mode of
+    CBALLS: Make.Select(0, Make.QUANTITY_ALL, True);
+    STEEL: Make.Select(4, Make.QUANTITY_ALL, True);
+  end;
+
+  WaitUntil(WaitProcessing(), 200, 175000);
+end;
+
+procedure WithdrawSteelBars();
+var
+  Materials: TRSItemArray := ['Iron ore', 'Coal'];
+  Amounts: TIntegerArray := [9, 18];
+  BankItem: TRSBankItem;
+  i: Int32;
+begin
+  WaitEx(500, 450);
+  Bank.DepositAll();
+  WaitEx(500, 450);
+  for i := 0 to High(Materials) do
+  begin
+    BankItem := [Materials[i], Amounts[i], False];
+    Bank.WithdrawItem(BankItem, False);
+    WaitEx(500, 450);
+  end;
+end;
+
+procedure WithdrawCannonballs();
+var
+  BankItem: TRSBankItem := ['Steel Bar', -1, False];
+begin
+  Bank.WithdrawItem(BankItem, False);
+end;
+
+procedure Restock();
+begin
+  if not BankObj.Click() then
+  begin
+    if SRL.Dice(50) then
+      KeyboardRotate()
+    else
+      Antiban.RandomRotate();
+
+    Exit();
+  end;
+
+  WaitUntil(Bank.IsOpen(), 200, 8000);
+
+  if not Bank.IsOpen() then
+    Exit();
+
+  case Mode of
+    STEEL: WithdrawSteelBars();
+    CBALLS: WithdrawCannonballs();
+  end;
+
+  Bank.Close(55);
+end;
+
+procedure Smelt();
+begin
+  Antiban.DoAntiban();
+
+  if not RSClient.IsLoggedIn() then
+    Login.LoginPlayer();
+
+  CalculateXP();
+
+  if HasMaterials then
+    Process()
+  else
+    Restock();
+
+  PrintProgress();
+  WaitEx(775, 555);
+end;
+
+begin
+  InitiateScript();
+  repeat
+    Smelt();
+  until false;
+end.
