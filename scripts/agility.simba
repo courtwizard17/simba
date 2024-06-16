@@ -7,16 +7,16 @@ begin
 end;
 
 type
-  ECourse = (SEERS, FALLY, DRAYNOR, VARRO);
+  ECourse = (SEERS, FALLY, DRAYNOR, VARRO, POLLNIV);
 
 const
-  COURSE      = SEERS;
+  COURSE      = POLLNIV;
   BREAKAFTER  = 60;
   BREAKFOR    = 6;
-  FOODNAME    = 'Jug of wine';
+  FOODNAME    = 'Lobster';
 
-  BIRDHOUSES  = False;
-  INTERVAL    = ONE_HOUR;
+  BIRDHOUSES  = True;
+  INTERVAL    = 60* ONE_MINUTE;
   SEED        = 'Hammerstone seed';
 
   EXTRA_ANTIBAN = True; (* Adds longer wait times and short breaks, "non-focused player" *)
@@ -226,6 +226,89 @@ begin
   BankObject.Finder.Colors += CTS2(3822977, 15, 0.45, 2.38);
   RuneArray := ['Law rune', 'Earth rune', 'Air rune'];
   ReturnSpell := ERSSpell.LUMBRIDGE_TELEPORT;
+end;
+
+procedure SetupPollniv();
+var
+  PollnivCityBox: TBox := [8643, 4375, 9066, 4744];
+  CourseAreaBox: TBox := [60, 4500, 1400, 5400];
+begin
+  SetLength(Obstacles, 9);
+
+  with Obstacles[0] do
+  begin
+    Index := 0;
+    Tile := [8796, 4600];
+    WalkTile := [8816, 4596];
+    UpText := ['Basket'];
+    Area := PollnivCityBox;
+  end;
+  with Obstacles[1] do
+  begin
+    Index := 1;
+    Tile := [1028, 4742];
+    UpText := ['Jump'];
+    Area := [1007, 4745, 1048, 4782];
+    Height := -2;
+  end;
+  with Obstacles[2] do
+  begin
+    Index := 2;
+    Tile := [1054, 4714];
+    UpText := ['Banner'];
+    Area := [1032, 4714, 1060, 4741];
+  end;
+  with Obstacles[3] do
+  begin
+    Index := 3;
+    Tile := [1082, 4716];
+    UpText := ['Leap'];
+    Area := [1065, 4704, 1087, 4721];
+  end;
+  with Obstacles[4] do
+  begin
+    Index := 4;
+    Tile := [1098, 4716];
+    UpText := ['ump'];
+    Area := [1090, 4716, 1114, 4733];
+    Height := 2;
+  end;
+  with Obstacles[5] do
+  begin
+    Index := 5;
+    Tile := [1090, 4694];
+    UpText := ['Climb'];
+    Area := [1080, 4677, 1115, 4703];
+    Height := 2;
+  end;
+  with Obstacles[6] do
+  begin
+    Index := 6;
+    Tile := [906, 4948];
+    UpText := ['Monkey'];
+    Area := [877, 4940, 948, 4977];
+    Height := 2;
+  end;
+  with Obstacles[7] do
+  begin
+    Index := 7;
+    Tile := [914, 4900];
+    UpText := ['ump'];
+    Area := [887, 4900, 966, 4937];
+    Height := -2;
+  end;
+  with Obstacles[8] do
+  begin
+    Index := 8;
+    Tile := [926, 4884];
+    UpText := ['Drying'];
+    Area := [888, 4866, 931, 4899];
+    Height := -2;
+  end;
+
+  AgilityRSW.SetupRegions([PollnivCityBox, CourseAreaBox]);
+  RuneArray := ['Law rune', 'Earth rune', 'Air rune'];
+  ReturnSpell := ERSSpell.TELEPORT_TO_HOUSE;
 end;
 
 procedure SetupVarrock();
@@ -531,6 +614,7 @@ begin
     SEERS: SetupSeers();
     DRAYNOR: SetupDraynor();
     VARRO: SetupVarrock();
+    POLLNIV: SetupPollniv();
   end;
 
   if EXTRA_ANTIBAN then
@@ -749,12 +833,14 @@ begin
   if not RSClient.IsLoggedIn() then
     Exit();
 
-  if Timer.ElapsedTime > 40000 then
-  begin
+  if not Timer.ElapsedTime() > 40000 then
+    WriteDebug('Lost')
+  else if Course = POLLNIV then
+    Magic.CastSpell(ReturnSpell, 'Outside')
+  else
     Magic.CastSpell(ReturnSpell);
-    WaitEx(5250, 225);
-  end else
-    WriteDebug('Lost');
+
+  WaitEx(5775, 555);
 end;
 
 procedure Agility();
@@ -792,6 +878,15 @@ begin
 
   for i := 0 to High(Antiban.Tasks) do
     Antiban.Tasks[i].Countdown.Pause();
+
+  if Course = POLLNIV then
+    if BirdhouseRunner.HasAllItemsForRun() then
+      Exit(True)
+    else
+    begin
+      BirdhouseRunner.IsDisabled := True;
+      Exit(False);
+    end;
 
   bankTimeout.Init(65000);
 
@@ -839,9 +934,56 @@ end;
 
 procedure TBirdHouseInclude.OnComplete(); override;
 var
-  i: Int32;
+  i, j: Int32;
+  bankTimeout : TCountdown;
+  FoodBankItem, RuneBankItem: TRSBankItem;
 begin
   Self.DebugLn("Birdhouse Include OnComplete");
+
+  if Course = POLLNIV then
+  begin
+    bankTimeout.Init(65000);
+
+    while not bankTimeOut.IsFinished() and not Bank.IsOpen() do
+    begin
+      Bank.WalkOpen(RSObjects.BankChestFossilIsland);
+      WaitUntil(Bank.IsOpen(), 250, 2000);
+    end;
+
+    if not Bank.IsOpen() then
+    begin
+      Self.DebugLn("Failed to get to bank");
+      Exit();
+    end;
+
+    if Inventory.CountEmptySlots() < 28 then
+    begin
+      Bank.DepositAll();
+      WaitUntil(Inventory.CountEmptySlots() > 25, 150, 2000);
+
+      if not Self.WithdrawNextRun() then
+      begin
+        Self.DebugLn("Failed to get bank items");
+        Bank.DepositAll();
+        Bank.Close();
+        BirdhouseRunner.IsDisabled := True;
+        Exit();
+      end;
+
+      for j := 0 to High(RuneArray) do
+      begin
+        RuneBankItem := TRSBankItem.Setup(RuneArray[j], 10, False);
+        Bank.WithdrawItem(RuneBankItem, False);
+        WaitEx(500, 450);
+      end;
+
+      FoodBankItem := TRSBankItem.Setup(Food, 2, False);
+      Bank.WithDrawItem(FoodBankItem, False);
+      WaitEx(325, 250);
+      Bank.Close(60);
+    end;
+  end;
+
   ScriptWalker := @AgilityRSW;
   Magic.CastSpell(ReturnSpell);
   WaitEx(6969, 420);
