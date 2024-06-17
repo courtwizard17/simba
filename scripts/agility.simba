@@ -3,21 +3,20 @@ program agility;
 {$I ../Includes/BHI.simba}
 
 begin
-  Login.PlayerIndex := 1;
+  Login.PlayerIndex := 0;
 end;
 
 type
   ECourse = (SEERS, FALLY, DRAYNOR, VARRO, POLLNIV);
 
 const
-  COURSE      = POLLNIV;
-  BREAKAFTER  = 60;
-  BREAKFOR    = 6;
-  FOODNAME    = 'Lobster';
+  COURSE     = DRAYNOR;
+  BREAKAFTER = 60;
+  BREAKFOR   = 6;
 
-  BIRDHOUSES  = True;
-  INTERVAL    = 60* ONE_MINUTE;
-  SEED        = 'Hammerstone seed';
+  BHRUNS     = False;
+  INTERVAL   = 60* ONE_MINUTE;
+  SEED       = 'Hammerstone seed';
 
   EXTRA_ANTIBAN = True; (* Adds longer wait times and short breaks, "non-focused player" *)
 
@@ -40,6 +39,7 @@ var
   AgilityRSW: TRSWalker;
   BankObject: TRSObject;
   ReturnSpell: ERSSpell;
+  Birdhouses: Boolean;
   Logs: ERSLogType;
   Food: TRSItem;
 
@@ -61,17 +61,17 @@ end;
 
 procedure CalculateXP();
 var
-  t: Int32;
+  TempValue: Int32;
 begin
   CurrentXP := XPBar.Read();
-  t         := GainedXP;
+  TempValue := GainedXP;
   GainedXP  := (CurrentXP - StartXP);
 
-  if GainedXP > t then
+  if GainedXP > TempValue then
     Timer.Reset();
 
-  if Timer.ElapsedTime > 300000 then
-    TerminateScript('No Gained XP in 5 minutes!');
+  if Timer.ElapsedTime() > 300000 then
+    TerminateScript('No Gained XP in 5 mins, stopping!');
 end;
 
 procedure WriteDebug(Message: String);
@@ -81,13 +81,17 @@ end;
 
 procedure PrintProgress();
 var
-  hrs: Double;
-  s1, s3: String;
+  Hours: Double;
+  Total, Hourly: String;
 begin
-  hrs := (GetTimeRunning()/3600000);
-  s1 := ToStr(Round((GainedXP/1000), 0), ' k ');
-  s3 := ToStr('(', Round((GainedXP/(hrs*1000)), 1), ' k / hr)');
-  WriteLn(SRL.TimeStamp(), ':[Experience]: ', s1, s3);
+  if ReportTimer.ElapsedTime() < 60000 then
+    Exit();
+
+  Hours := (GetTimeRunning()/3600000);
+  Total := ToStr(Round((GainedXP/1000), 0), ' k ');
+  Hourly := ToStr('(', Round((GainedXP/(Hours*1000)), 1), ' k / hr)');
+  WriteLn(SRL.TimeStamp(), ':[Experience]: ', Total, Hourly);
+
   ReportTimer.Reset();
 end;
 
@@ -110,11 +114,13 @@ begin
   if not RSClient.IsLoggedIn() then
     Exit();
 
-  if Minimap.GetHPPercent < 50 then
-    if Inventory.ContainsItem(Food) then
-      Inventory.ClickItem(Food)
-    else
-      TerminateScript('Could not eat food, possible out of it?');
+  if Minimap.GetHPPercent() > 40 then
+    Exit();
+
+  if Inventory.ContainsItem(Food) then
+    Inventory.ClickItem(Food)
+  else
+    TerminateScript('Could not eat food, possible out of it?');
 end;
 
 procedure TAntiban.DoLoseFocus();
@@ -307,8 +313,6 @@ begin
   end;
 
   AgilityRSW.SetupRegions([PollnivCityBox, CourseAreaBox]);
-  RuneArray := ['Law rune', 'Earth rune', 'Air rune'];
-  ReturnSpell := ERSSpell.TELEPORT_TO_HOUSE;
 end;
 
 procedure SetupVarrock();
@@ -587,6 +591,18 @@ begin
   ReturnSpell := ERSSpell.CAMELOT_TELEPORT;
 end;
 
+procedure SetupFood();
+var
+  Foods: TRSItemArray := ['Trout', 'Salmon', 'Tuna', 'Lobster', 'Bass', 'Cake', 'Jug of wine'];
+  LFood: TRSItem;
+begin
+  for LFood in Foods do
+    if not Inventory.ContainsItem(LFood) then
+      Continue()
+    else
+      Food := LFood;
+end;
+
 procedure InitiateScript();
 begin
   if not RSClient.IsLoggedIn() then
@@ -601,7 +617,15 @@ begin
   Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
   Options.SetZoomLevel(Random(0, 6));
 
-  if BIRDHOUSES then
+  Birdhouses := False;
+
+  if BHRUNS then
+    if Course = POLLNIV then
+      WriteDebug('Birdhouse runs are not supported for Pollnivneach.')
+    else
+      Birdhouses := True;
+
+  if Birdhouses then
   begin
     Logs := BirdHouseRunner.GetLogForHunterLevel(Stats.GetLevel(ERSSkill.HUNTER, False));
     WriteLn('Logtype for birdhouses based on level: ', ToStr(Logs));
@@ -612,8 +636,8 @@ begin
   case Course of
     FALLY: SetupFalador();
     SEERS: SetupSeers();
-    DRAYNOR: SetupDraynor();
     VARRO: SetupVarrock();
+    DRAYNOR: SetupDraynor();
     POLLNIV: SetupPollniv();
   end;
 
@@ -632,9 +656,7 @@ begin
     Mouse.Speed := Random(20, 26);
 
   SetupAntiban();
-  Mouse.Speed := SRL.NormalRange(12, 18);
-  Food := FOODNAME;
-
+  SetupFood();
   Timer.Start();
   ReportTimer.Start();
 end;
@@ -732,7 +754,7 @@ begin
   if not RSClient.IsLoggedIn() then
     Exit();
 
-  if BIRDHOUSES then
+  if Birdhouses then
     if BirdHouseRunner.CanDoBirdHouseRun() then
       BirdHouseRunner.DoBirdHouseRun();
 
@@ -836,8 +858,11 @@ begin
   if not Timer.ElapsedTime() > 40000 then
     WriteDebug('Lost')
   else if Course = POLLNIV then
-    Magic.CastSpell(ReturnSpell, 'Outside')
-  else
+  begin
+    Magic.MouseSpell(ReturnSpell);
+    Mouse.Click(MOUSE_RIGHT);
+    ChooseOption.Select('Outside');
+  end else
     Magic.CastSpell(ReturnSpell);
 
   WaitEx(5775, 555);
@@ -856,9 +881,7 @@ begin
   HealthManagement();
   CalculateXP();
   Step := GetStep();
-
-  if ReportTimer.ElapsedTime() > 60000 then
-    PrintProgress();
+  PrintProgress();
 
   case Step of
     -1: RecoverFromLost();
@@ -878,15 +901,6 @@ begin
 
   for i := 0 to High(Antiban.Tasks) do
     Antiban.Tasks[i].Countdown.Pause();
-
-  if Course = POLLNIV then
-    if BirdhouseRunner.HasAllItemsForRun() then
-      Exit(True)
-    else
-    begin
-      BirdhouseRunner.IsDisabled := True;
-      Exit(False);
-    end;
 
   bankTimeout.Init(65000);
 
@@ -924,7 +938,10 @@ begin
     end;
 
     FoodBankItem := TRSBankItem.Setup(Food, 2, False);
-    Bank.WithDrawItem(FoodBankItem, False);
+
+    if Bank.ContainsItem(Food) then
+      Bank.WithDrawItem(FoodBankItem, False);
+
     WaitEx(325, 250);
     Bank.Close(60);
   end;
@@ -934,56 +951,9 @@ end;
 
 procedure TBirdHouseInclude.OnComplete(); override;
 var
-  i, j: Int32;
-  bankTimeout : TCountdown;
-  FoodBankItem, RuneBankItem: TRSBankItem;
+  i: Int32;
 begin
   Self.DebugLn("Birdhouse Include OnComplete");
-
-  if Course = POLLNIV then
-  begin
-    bankTimeout.Init(65000);
-
-    while not bankTimeOut.IsFinished() and not Bank.IsOpen() do
-    begin
-      Bank.WalkOpen(RSObjects.BankChestFossilIsland);
-      WaitUntil(Bank.IsOpen(), 250, 2000);
-    end;
-
-    if not Bank.IsOpen() then
-    begin
-      Self.DebugLn("Failed to get to bank");
-      Exit();
-    end;
-
-    if Inventory.CountEmptySlots() < 28 then
-    begin
-      Bank.DepositAll();
-      WaitUntil(Inventory.CountEmptySlots() > 25, 150, 2000);
-
-      if not Self.WithdrawNextRun() then
-      begin
-        Self.DebugLn("Failed to get bank items");
-        Bank.DepositAll();
-        Bank.Close();
-        BirdhouseRunner.IsDisabled := True;
-        Exit();
-      end;
-
-      for j := 0 to High(RuneArray) do
-      begin
-        RuneBankItem := TRSBankItem.Setup(RuneArray[j], 10, False);
-        Bank.WithdrawItem(RuneBankItem, False);
-        WaitEx(500, 450);
-      end;
-
-      FoodBankItem := TRSBankItem.Setup(Food, 2, False);
-      Bank.WithDrawItem(FoodBankItem, False);
-      WaitEx(325, 250);
-      Bank.Close(60);
-    end;
-  end;
-
   ScriptWalker := @AgilityRSW;
   Magic.CastSpell(ReturnSpell);
   WaitEx(6969, 420);
