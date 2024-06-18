@@ -1,4 +1,4 @@
-program seerscutter;
+program forestry;
 {$I WaspLib/osr.simba}
 {$I ../Includes/BHI.simba}
 
@@ -10,14 +10,14 @@ type
   EWOODTYPES = (NORMAL, OAK, WILLOW, MAPLE, YEW, MAGE);
 
 const
-  WOOD: EWOODTYPES = NORMAL;
+  WOOD: EWOODTYPES = WILLOW;
 
-  BREAKAFTER  = 40;
-  BREAKFOR    = 5;
+  BREAKAFTER  = 60;
+  BREAKFOR    = 6;
 
   BIRDHOUSES  = False;
-  INTERVAL    = 10 * ONE_MINUTE;
-  SEED        = 'Barley seed';
+  INTERVAL    = 50 * ONE_MINUTE;
+  SEED        = 'Hammerstone seed';
 
 var
   Timer, ReportTimer: TStopwatch;
@@ -39,30 +39,46 @@ begin
   Result := False;
 end;
 
+procedure TakeScreenshot();
+var
+  i: Int32;
+begin
+  CreateDirectory('Forestry/');
+  i := Length(GetFiles('Forestry', 'png'));
+  SaveScreenshot('Forestry/Info' + IntToStr(i) + '.png');
+end;
+
 procedure CalculateXP();
 var
-  t: Int32;
+  TempValue: Int32;
 begin
   CurrentXP := XPBar.Read();
-  t         := GainedXP;
+  TempValue := GainedXP;
   GainedXP  := (CurrentXP - StartXP);
 
-  if GainedXP > t then
+  if GainedXP > TempValue then
     Timer.Reset();
 
   if Timer.ElapsedTime > 300000 then
-    TerminateScript('No Gained XP in 5 minutes!');
+  begin
+    TakeScreenshot();
+    TerminateScript('No Gained XP in 5 mins, stopping!');
+  end;
 end;
 
 procedure PrintProgress();
 var
-  hrs: Double;
-  s1, s3: String;
+  Hours: Double;
+  Total, Hourly: String;
 begin
-  hrs := (GetTimeRunning()/3600000);
-  s1 := ToStr(Round((GainedXP/1000), 0), ' k ');
-  s3 := ToStr('(', Round((GainedXP/(hrs*1000)), 1), ' k / hr)');
-  WriteLn(SRL.TimeStamp(), ':[Experience]: ', s1, s3);
+  if ReportTimer.ElapsedTime < 60000 then
+    Exit();
+
+  Hours := (GetTimeRunning()/3600000);
+  Total := ToStr(Round((GainedXP/1000), 0), ' k ');
+  Hourly := ToStr('(', Round((GainedXP/(Hours*1000)), 1), ' k / hr)');
+  WriteLn(SRL.TimeStamp(), ':[Experience]: ', Total, Hourly);
+
   ReportTimer.Reset();
 end;
 
@@ -280,6 +296,20 @@ begin
     KeyboardRotate();
 end;
 
+(*
+  Events:
+
+  Anima-infused greenish color: CTS2(6790477, 21, 0.03, 0.57)
+  Anima-infused root brown color: CTS2(4149848, 3, 0.13, 0.43)
+
+  Unfinished beehive light brown log: CTS2(5864334, 2, 0.09, 0.58)
+  Unfinished beehive dark brown log: CTS2(5133675, 2, 0.29, 0.25)
+
+  Rainbow Purple: CTS2(9654401, 3, 0.96, 3.63)
+  Rainbow Blue: CTS2(11245898, 2, 0.95, 2.78)
+  Green guy's hat: CTS2(2782783, 5, 0.13, 1.46)
+*)
+
 procedure DepositLogs();
 var
   t: Int32;
@@ -447,7 +477,7 @@ begin
   Self.DebugLn("Completed a birdhouse run.");
 
   Magic.CastSpell(ERSSpell.CAMELOT_TELEPORT);
-  WaitEx(2500, 500);
+  WaitEx(5250, 445);
 
   for i := 0 to High(Antiban.Tasks) do
     Antiban.Tasks[i].Countdown.Resume();
