@@ -1,0 +1,50 @@
+program tithe;
+{$I WaspLib/osr.simba}
+
+var
+  RSW: TRSWalker;
+  BarrelTile: TPoint := [2629, 2459];
+  PlantTiles: TPointArray;
+
+procedure GeneratePlantArray();
+var
+  x, y: Int32;
+  p: TPoint;
+begin
+  x := 2637;
+  for 1 to 2 do
+  begin
+    y := 2467;
+    for 1 to 4 do
+    begin
+      PlantTiles += Point(x, y);
+      y += 12;
+    end;
+    x += 20;
+  end;
+end;
+
+procedure DrawPlantArray();
+var
+  Tile: TRectangle;
+  i: Int32;
+begin
+  for i := 0 to High(PlantTiles) do
+  begin
+    Tile := RSW.GetTileMS(PlantTiles[i]);
+    RSClient.Image.DrawRect(Tile, clRed);
+  end;
+end;
+
+begin
+  RSW.Setup([[2500, 2300, 2800, 2600]], 2);
+  GeneratePlantArray();
+  DrawPlantArray();
+  Sleep(10000);
+  repeat
+  begin
+    WriteLn(RSW.GetMyPos());
+    Wait(1000);
+  end;
+  until false;
+end.
