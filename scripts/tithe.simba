@@ -5,38 +5,29 @@ begin
   Login.PlayerIndex := 1;
 end;
 
+type
+  EState = (REFILL, WATER, HARVEST, PLANT);
+
 const
   BREAKAFTER = 60;
   BREAKFOR   = 6;
 
 var
-  Seed: TRSItem;
+  State: EState;
+  Active: TPoint;
   RSW: TRSWalker;
-  Fruit: TRSItem;
+  Barrel: TRSObject;
+  F: TRSObjectFinder;
   Plants: TPointArray;
-  WateringCan: TRSItem;
+  PlantColor: TCTS2Color;
   StartXP, CurrentXP, GainedXP,
   WaterLimit, UsedWater: Int32;
   Timer, ReportTimer: TStopwatch;
-  GrownColor, PlantColor: TCTS2Color;
+  WateringCan, Seed, Fruit: TRSItem;
 
 procedure WriteDebug(Message: String);
 begin
   WriteLn(SRL.TimeStamp(), ':[Script]: ', Message);
-end;
-
-function TRectangle.RandomMean(): TPoint;
-var
-  centerX, centerY, randX, randY: Double;
-begin
-  centerX := Self.Mean().X;
-  centerY := Self.Mean().Y;
-
-  randX := Self.Left.X + Random * (Self.Right.X - Self.Left.X);
-  randY := Self.Top.Y + Random * (Self.Btm.Y - Self.Top.Y);
-
-  Result.X := Trunc((centerX + randX) / 2);
-  Result.Y := Trunc((centerY + randY) / 2);
 end;
 
 procedure PrintProgress();
@@ -151,12 +142,18 @@ end;
 
 function IsGrown(Tile: TPoint): Boolean;
 var
+  ATPA: T2DPointArray;
+  TPA: TPointArray;
   Bounds: TBox;
-  Amount: Int32;
 begin
-  Bounds := GetTileBounds(Tile, 4, 3);
-  Amount := SRL.CountColor(GrownColor, Bounds);
-  Result := (Amount > 200);
+  Bounds := GetTileBounds(Tile, 6, 6);
+  ATPA := Mainscreen.FindObject(F, Bounds);
+
+  if ATPA.Len < 1 then
+    Exit(False);
+
+  TPA := ATPA.Merge();
+  Result := (TPA.Len() > 75);
 end;
 
 function IsDead(Tile: TPoint): Boolean;
@@ -170,7 +167,7 @@ begin
   Result := (Amount > 2);
 end;
 
-function ShouldFillCans(): Boolean;
+function ShouldRefill(): Boolean;
 begin
   Result := (UsedWater > WaterLimit);
 end;
@@ -180,12 +177,9 @@ var
   Bounds: TBox;
   Amount: Int32;
 begin
-  if IsDead(Tile) then
-    Exit(False);
-
   Bounds := GetTileBounds(Tile, 0, 1);
   Amount := SRL.CountColor(PlantColor, Bounds);
-  Result := (Amount < 1);
+  Result := (Amount = 0);
 end;
 
 function IsWatered(Tile: TPoint): Boolean;
@@ -196,39 +190,82 @@ var
 begin
   Bounds := GetTileBounds(Tile, 0, 5);
   Amount := SRL.CountColor(WaterColor, Bounds);
-  Result := (Amount > 5);
+  Result := (Amount > 3);
 end;
 
 function NeedsWatering(Tile: TPoint): Boolean;
 begin
-  if IsGrown(Tile) or IsFree(Tile) or IsDead(Tile) then
+  if IsFree(Tile) then
+    Exit(False);
+
+  if IsGrown(Tile) then
+    Exit(False);
+
+  if IsDead(Tile) then
     Exit(False);
 
   Result := not IsWatered(Tile);
 end;
 
+function AnyNeedsWatering(): Boolean;
+var
+  i: Int32;
+begin
+  for i := 0 to High(Plants) do
+  begin
+    Active := Plants[i];
+    if NeedsWatering(Active) then
+      Exit(True)
+  end;
+
+  Exit(False);
+end;
+
+function AnyIsGrown(): Boolean;
+var
+  i: Int32;
+begin
+  for i := 0 to High(Plants) do
+  begin
+    Active := Plants[i];
+    if IsGrown(Active) then
+      Exit(True)
+  end;
+
+  Exit(False);
+end;
+
 procedure SetupGolovanova();
 begin
   WriteDebug('Setting up Golovanova. (Level 34 seed.)');
-  GrownColor := CTS2(6001531, 5, 0.26, 0.19);
-  PlantColor := CTS2(4479878, 18, 0.17, 0.53);
   Fruit := 'Golovanova fruit';
+  PlantColor := CTS2(4479878, 18, 0.17, 0.53);
+  F.Grow := 4;
+  F.ClusterDistance := 20;
+  F.ColorClusters += [CTS2(10426776, 3, 0.07, 1.00),
+                      CTS2(6069633, 7, 0.14, 0.49), 4];
 end;
 
 procedure SetupBologano();
 begin
   WriteDebug('Setting up Bologano. (Level 54 seed.)');
-  GrownColor := CTS2(6716618, 23, 0.95, 1.14);
-  PlantColor := CTS2(6065729, 30, 0.54, 0.48);
   Fruit := 'Bologano fruit';
+  PlantColor := CTS2(11513163, 32, 0.14, 0.86);
+  F.Grow := 4;
+  F.ClusterDistance := 20;
+  F.ColorClusters += [CTS2(10426776, 3, 0.07, 1.00),
+                      CTS2(6069633, 7, 0.14, 0.49), 4];
 end;
 
 procedure SetupLogavano();
 begin
   WriteDebug('Setting up Logavano. (Level 74 seed.)');
-  GrownColor := CTS2(6001531, 5, 0.26, 0.19);
-  PlantColor := CTS2(4479878, 18, 0.17, 0.53);
   Fruit := 'Logavano fruit';
+  PlantColor := CTS2(4479878, 18, 0.17, 0.53);
+  F.Grow := 4;
+  F.ClusterDistance := 20;
+  F.ColorClusters += [CTS2(10426776, 3, 0.07, 1.00),
+                      CTS2(6069633, 7, 0.14, 0.49), 4];
 end;
 
 procedure InitiateScript();
@@ -237,7 +274,6 @@ var
   CurSeed: TRSItem;
 begin
   RSW.Setup([[2500, 2300, 2800, 2600]], 2);
-
   GeneratePlantArray();
 
   if not RSClient.IsLoggedIn() then
@@ -249,7 +285,6 @@ begin
   if StartXP < 69 then
     TerminateScript('Failed to read XP, make sure XPBar is set up!');
 
-  Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
   Options.SetZoomLevel(Random(18, 22));
 
   for CurSeed in Seeds do
@@ -267,99 +302,110 @@ begin
   if Inventory.ContainsItem('Gricoller' + #39 + 's can') then
   begin
     WateringCan := 'Gricoller' + #39 + 's can';
-    WaterLimit := 2 * WaterLimit;
+    WaterLimit := 3 * WaterLimit;
   end else
     WateringCan := 'Watering can';
 
-  Mouse.Speed := SRL.NormalRange(12, 18);
-  RSW.AdaptiveWalk := True;
+  Barrel.SetupUpText(['Barrel']);
+  Barrel.Setup(2, [[2629, 2459]]);
+  Barrel.Finder.Colors += CTS2(7290488, 13, 2.05, 1.73);
 
+  Mouse.Speed := SRL.NormalRange(14, 18);
   SetupAntiban();
 
   Timer.Start();
   ReportTimer.Start();
 end;
 
-function GetClosestFreeSpot(Tiles: TPointArray): TPoint;
+function GetClosestFreeSpot(): TPoint;
 var
   i: Int32;
 begin
-  for i := 0 to High(Tiles) do
-    if IsFree(Tiles[i]) then
-      Exit(Tiles[i]);
+  for i := 0 to High(Plants) do
+    if IsFree(Plants[i]) then
+      Exit(Plants[i]);
 end;
 
-procedure WaterPlant(Tile: TPoint);
+procedure WaterPlant();
 var
   Bounds: TBox;
 begin
   if Mainscreen.IsUpText('>') then
-    Mouse.Click(MOUSE_LEFT);
-
-  Bounds := GetTileBounds(Tile, 2, 0);
-  Mouse.HumanMove(Bounds.Center());
-
-  if Mainscreen.IsUpText('Water', 375) then
   begin
-    Mouse.Click(MOUSE_LEFT);
-    WaitUntil(IsWatered(Tile), 250, 4575);
-    Inc(UsedWater);
-    Exit();
+    WriteDebug('Uptext > detected, trying to close.');
+    ChooseOption.Select('Cancel');
   end;
 
-  WriteDebug('Failed to water!');
-  Antiban.RandomRotate();
+  Bounds := GetTileBounds(Active, 2, 0);
+  Mouse.HumanMove(Bounds.Center());
+
+  if not Mainscreen.IsUpText('Water', 375) then
+    Exit();
+
+  Mouse.Click(MOUSE_LEFT);
+
+  if not WaitUntil(IsWatered(Active), 250, 4575) then
+    Exit();
+
+  Inc(UsedWater);
 end;
 
-procedure HarvestPlant(Tile: TPoint);
+procedure HarvestPlant();
 var
+  Pos: TPoint := RSW.GetMyPos();
+  SortedPlants: TPointArray;
   Bounds: TBox;
   Fruits: Int32;
 begin
   if Mainscreen.IsUpText('>') then
-    Mouse.Click(MOUSE_LEFT);
-
-  Fruits := Inventory.CountItemStack(Fruit);
-  Bounds := GetTileBounds(Tile, 2, 0);
-  Mouse.HumanMove(Bounds.Center());
-
-  if Mainscreen.IsUpText(['vest', 'Harv'], 375) then
   begin
-    Mouse.Click(MOUSE_LEFT);
-    if WaitUntil(Fruits < Inventory.CountItemStack(Fruit), 250, 4575) then
-      Exit();
+    WriteDebug('Uptext > detected, trying to close.');
+    ChooseOption.Select('Cancel');
   end;
 
-  WriteDebug('Failed to harvest!');
-  Antiban.RandomRotate();
+  Fruits := Inventory.CountItemStack(Fruit);
+  Bounds := GetTileBounds(Active, 2, 0);
+  Mouse.HumanMove(Bounds.Center());
+
+  if not Mainscreen.IsUpText(['vest', 'Harv'], 375) then
+  begin
+    WriteDebug('Failed to Harvest!');
+    Exit();
+  end;
+
+  Mouse.Click(MOUSE_LEFT);
+
+  if not WaitUntil(Fruits < Inventory.CountItemStack(Fruit), 250, 4575) then
+    WriteDebug('Failed to harvest!');
 end;
 
 procedure Fertilise(Tile: TPoint);
 var
-  F: TRSItem := 'Gricoller' + #39 + 's fertiliser';
-  Rect: TRectangle;
+  Bucket: TRSItem := 'Gricoller' + #39 + 's fertiliser';
   Fruits: Int32;
   Bounds: TBox;
-  Pt: TPoint;
 begin
   if Mainscreen.IsUpText('>') then
-    Mouse.Click(MOUSE_LEFT);
+  begin
+    WriteDebug('Uptext > detected, trying to close.');
+    ChooseOption.Select('Cancel');
+  end;
 
-  if not Inventory.ClickItem(F) then
+  if not Inventory.ClickItem(Bucket) then
     Exit();
 
   WaitEx(225, 200);
-
   Bounds := GetTileBounds(Tile, 0, 1);
-  Rect := Bounds.ToRectangle();
-  Pt := Rect.RandomMean();
-  Mouse.HumanMove(Pt);
+  Mouse.HumanMove(Bounds.Center());
 
   if not Mainscreen.IsUpText('seedling', 225) then
+  begin
+    WriteDebug('Failed to Fertilise!');
     Exit();
+  end;
 
   Mouse.Click(MOUSE_LEFT);
-  WaitEx(1075, 125);
+  WaitEx(1375, 325);
 end;
 
 function AllSpotsCleared(): Boolean;
@@ -373,128 +419,105 @@ begin
   Exit(True);
 end;
 
-function Plant(Tile: TPoint): Boolean;
+procedure PlantSeed();
 var
-  Pt: TPoint;
-  Rect: TRectangle;
+  Area: TBox := [2636, 2462, 2658, 2509];
+  Pos: TPoint := RSW.GetMyPos();
   Bounds: TBox;
   Seeds: Int32;
 begin
   if Mainscreen.IsUpText('>') then
-    Mouse.Click(MOUSE_LEFT);
+  begin
+    WriteDebug('Uptext > detected, trying to close.');
+    ChooseOption.Select('Cancel');
+  end;
 
+  if not Pos.InBox(Area) then
+    RSW.WalkBlind(Area.Center());
+
+  Active := GetClosestFreeSpot();
   Seeds := Inventory.CountItemStack(Seed);
 
   if not Inventory.ClickItem(Seed) then
-    Exit(False);
+    Exit();
 
-  Bounds := GetTileBounds(Tile, 0, 1);
-  Rect := Bounds.ToRectangle();
-  Pt := Rect.RandomMean();
-  Mouse.HumanMove(Pt);
+  Bounds := GetTileBounds(Active, 0, 0);
+  Mouse.HumanMove(Bounds.Center());
 
   if not Mainscreen.IsUpText('> Tit', 225) then
+  begin
+    WriteDebug('Failed to Plant!');
+    Exit();
+  end;
+
+  Mouse.Click(MOUSE_LEFT);
+
+  if WaitUntil(Seeds > Inventory.CountItemStack(Seed), 250, 4575) then
+    Fertilise(Active);
+end;
+
+procedure RefillCans();
+var
+  Pos: TPoint := RSW.GetMyPos();
+  Bounds: TBox;
+begin
+  WriteDebug('Starting to fill watering can(s).');
+
+  if Pos.DistanceTo(Barrel.Coordinates[0]) > 24 then
+    RSW.WalkBlind(Barrel.Coordinates[0]);
+
+  if not Barrel.IsVisible() then
+    Exit();
+
+  if not Inventory.SetSelectedItem(WateringCan) then
+    Exit();
+
+  Bounds := GetTileBounds(Barrel.Coordinates[0], 2, 0);
+  Mouse.HumanMove(Bounds.Center());
+
+  if not Mainscreen.IsUpText('Barr') then
     Exit();
 
   Mouse.Click(MOUSE_LEFT);
-  Result := WaitUntil(Seeds > Inventory.CountItemStack(Seed), 250, 4575);
-end;
 
-function TendPlants(SortedPlants: TPointArray): Boolean;
-var
-  i: Int32;
-begin
-  for i := 0 to High(SortedPlants) do
-    if NeedsWatering(SortedPlants[i]) then
-      begin
-        WaterPlant(SortedPlants[i]);
-        Exit(True);
-      end;
+  if WateringCan = 'Watering can' then
+    WaitUntil(not Inventory.ContainsItem(WateringCan), 250, 180000)
+  else
+    WaitEx(5575, 2275);
 
-  for i := 0 to High(SortedPlants) do
-    if IsGrown(SortedPlants[i]) then
-      begin
-        HarvestPlant(SortedPlants[i]);
-        Exit(True);
-      end;
-
-  Exit(False);
-end;
-
-procedure ClearPlants();
-var
-  SortedPlants: TPointArray;
-  Pos: TPoint := RSW.GetMyPos();
-begin
-  WriteDebug('Starting to clear all existing plants.');
-  SortedPlants := Plants.Sorted(Pos);
-
-  repeat
-  begin
-    TendPlants(SortedPlants);
-    WaitEx(1000, 250);
-  end;
-  until AllSpotsCleared();
-end;
-
-procedure FillWateringCans();
-var
-  BarrelTile: TPoint := [2629, 2459];
-  Pos: TPoint := RSW.GetMyPos();
-  BarrelRect: TRectangle;
-begin
-  WriteDebug('Starting to fill watering cans.');
-
-  ClearPlants();
-
-  if Pos.DistanceTo(BarrelTile) > 18 then
-    RSW.WalkBlind(BarrelTile);
-
-  BarrelRect := RSW.GetTileMs(BarrelTile);
-
-  if not Mainscreen.Bounds.Contains(BarrelRect) then
-    Exit();
-
-  Inventory.ClickItem(WateringCan);
-  Mouse.HumanMove(BarrelRect.RandomMean());
-
-  if Mainscreen.IsUpText('Barrel') then
-  begin
-    Mouse.Click(MOUSE_LEFT);
-
-    if WateringCan = 'Watering can' then
-      WaitUntil(not Inventory.ContainsItem(WateringCan), 250, 180000)
-    else
-      WaitEx(8750, 1234);
-
-    UsedWater := 0;
-  end;
-
+  UsedWater := 0;
   Antiban.DoAntiban();
 end;
 
-procedure Farm();
+function GetState(): EState;
 var
-  SortedPlants: TPointArray;
-  New, Pos: TPoint;
-  i: Int32;
+  Pos: TPoint := RSW.GetMyPos();
 begin
-  Pos := RSW.GetMyPos();
-  SortedPlants := Plants.Sorted(Pos);
+  Plants.Sort(Pos);
 
-  if TendPlants(SortedPlants) then
-    Exit();
+  if ShouldRefill() then
+    if AllSpotsCleared() then
+      Exit(REFILL);
 
-  if ShouldFillCans() then
-  begin
-    FillWateringCans();
-    Exit();
+  if AnyNeedsWatering() then
+    Exit(WATER);
+
+  if AnyIsGrown() then
+    Exit(HARVEST);
+
+  if not ShouldRefill() then
+    Exit(PLANT);
+end;
+
+procedure Farm();
+begin
+  State := GetState();
+  case State of
+    HARVEST: HarvestPlant();
+    REFILL: RefillCans();
+    PLANT: PlantSeed();
+    WATER: WaterPlant();
   end;
-
-  New := GetClosestFreeSpot(SortedPlants);
-
-  if Plant(New) then
-    Fertilise(New);
 end;
 
 procedure Tithe();
@@ -507,8 +530,7 @@ begin
   CalculateXP();
   PrintProgress();
   Farm();
-
-  WaitEx(255, 225);
+  WaitEx(100, 95);
 end;
 
 begin
