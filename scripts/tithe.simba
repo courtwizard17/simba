@@ -6,7 +6,7 @@ begin
 end;
 
 type
-  EState = (REFILL, WATER, HARVEST, PLANT);
+  EState = (REFILL, WATER, HARVEST, PLANT, WAIT_STATE);
 
 const
   BREAKAFTER = 60;
@@ -153,7 +153,7 @@ begin
     Exit(False);
 
   TPA := ATPA.Merge();
-  Result := (TPA.Len() > 75);
+  Result := (TPA.Len() > 90);
 end;
 
 function IsDead(Tile: TPoint): Boolean;
@@ -261,11 +261,11 @@ procedure SetupLogavano();
 begin
   WriteDebug('Setting up Logavano. (Level 74 seed.)');
   Fruit := 'Logavano fruit';
-  PlantColor := CTS2(4479878, 18, 0.17, 0.53);
+  PlantColor := CTS2(8792460, 28, 0.09, 1.66);
   F.Grow := 4;
   F.ClusterDistance := 20;
-  F.ColorClusters += [CTS2(10426776, 3, 0.07, 1.00),
-                      CTS2(6069633, 7, 0.14, 0.49), 4];
+  F.ColorClusters += [CTS2(5737591, 3, 0.12, 0.24),
+                      CTS2(10558363, 2, 0.11, 0.75), 4];
 end;
 
 procedure InitiateScript();
@@ -340,7 +340,11 @@ begin
   Mouse.HumanMove(Bounds.Center());
 
   if not Mainscreen.IsUpText('Water', 375) then
+  begin
+    WriteDebug('Failed to Water!');
+    Antiban.RandomRotate();
     Exit();
+  end;
 
   Mouse.Click(MOUSE_LEFT);
 
@@ -370,6 +374,7 @@ begin
   if not Mainscreen.IsUpText(['vest', 'Harv'], 375) then
   begin
     WriteDebug('Failed to Harvest!');
+    Antiban.RandomRotate();
     Exit();
   end;
 
@@ -497,7 +502,9 @@ begin
 
   if ShouldRefill() then
     if AllSpotsCleared() then
-      Exit(REFILL);
+      Exit(REFILL)
+    else
+      Exit(WAIT_STATE);
 
   if AnyNeedsWatering() then
     Exit(WATER);
@@ -513,6 +520,7 @@ procedure Farm();
 begin
   State := GetState();
   case State of
+    WAIT_STATE: Wait(999);
     HARVEST: HarvestPlant();
     REFILL: RefillCans();
     PLANT: PlantSeed();
