@@ -7,15 +7,15 @@ begin
 end;
 
 type
-  ECourse = (SEERS, FALLY, DRAYNOR, VARRO, POLLNIV);
+  ECourse = (SEERS, FALLY, DRAYNOR, VARRO, POLLNIV, ARDY);
 
 const
-  COURSE     = DRAYNOR;
-  BREAKAFTER = 60;
-  BREAKFOR   = 6;
+  COURSE     = ARDY;
+  BREAKAFTER = 40;
+  BREAKFOR   = 8;
 
-  BHRUNS     = False;
-  INTERVAL   = 60* ONE_MINUTE;
+  BHRUNS     = True;
+  INTERVAL   = 40* ONE_MINUTE;
   SEED       = 'Hammerstone seed';
 
   EXTRA_ANTIBAN = True; (* Adds longer wait times and short breaks, "non-focused player" *)
@@ -154,7 +154,7 @@ begin
   Antiban.AddTask(ONE_MINUTE * 25, @Antiban.HoverSkills, 1);
 
   if EXTRA_ANTIBAN then
-    Antiban.AddBreak(ONE_SECOND * 100, ONE_SECOND * 5, 1, 0);
+    Antiban.AddBreak(ONE_SECOND * 100, ONE_SECOND * 15, 1, 0);
 
   Antiban.AddBreak(BREAKAFTER * ONE_MINUTE, BREAKFOR * ONE_MINUTE, 0.3, 1);
   Antiban.OnStartBreak := @PauseTimer;
@@ -314,6 +314,75 @@ begin
 
   AgilityRSW.SetupRegions([PollnivCityBox, CourseAreaBox]);
 end;
+
+procedure SetupArdy();
+var
+  ArdougneCityBox: TBox := [5600, 3000, 6500, 3500];
+  CourseAreaBox: TBox := [500, 5000, 800, 5200];
+begin
+  SetLength(Obstacles, 7);
+
+  with Obstacles[0] do
+  begin
+    Index := 0;
+    Tile := [6084, 3256];
+    WalkTile := [6080, 3260];
+    UpText := ['p Wo', 'den Be', 'Wooden', 'Beams'];
+    Area := [5892, 3114, 6162, 3382];
+  end;
+  with Obstacles[1] do
+  begin
+    Index := 1;
+    Tile := [718, 5118];
+    UpText := ['ump', 'Gap'];
+    Area := [715, 5113, 734, 5170];
+  end;
+  with Obstacles[2] do
+  begin
+    Index := 2;
+    Tile := [682, 5086];
+    Color := CTS2(6058880, 8, 0.07, 0.05);
+    UpText := ['lk-on', 'Plan'];
+    Area := [677, 5080, 709, 5097];
+  end;
+  with Obstacles[3] do
+  begin
+    Index := 3;
+    Tile := [648, 5088];
+    UpText := ['ump', 'Gap'];
+    Area := [648, 5080, 675, 5096];
+  end;
+  with Obstacles[4] do
+  begin
+    Index := 4;
+    Tile := [648, 5122];
+    UpText := ['ump', 'Gap'];
+    Area := [643, 5100, 656, 5123];
+  end;
+  with Obstacles[5] do
+  begin
+    Index := 5;
+    Tile := [652, 5159];
+    UpText := ['Balance', 'ce-ac', 'Steep', 'eep ro'];
+    Area := [636, 5120, 664, 5164];
+  end;
+  with Obstacles[6] do
+  begin
+    Index := 6;
+    Tile := [662, 5174];
+    UpText := ['ump', 'Gap'];
+    Area := [647, 5168, 673, 5181];
+  end;
+
+  AgilityRSW.SetupRegions([ArdougneCityBox, CourseAreaBox]);
+
+  BankObject.SetupUpText(['Bank','Bank booth']);
+  BankObject.Setup(6, [[6016, 3304]]);
+  BankObject.Finder.Colors += CTS2(6251367, 1, 1.67, 1.48);
+  RuneArray := ['Law rune', 'Water rune'];
+  ReturnSpell := ERSSpell.ARDOUGNE_TELEPORT;
+end;
+
 
 procedure SetupVarrock();
 var
@@ -634,6 +703,7 @@ begin
   end;
 
   case Course of
+    ARDY: SetupArdy();
     FALLY: SetupFalador();
     SEERS: SetupSeers();
     VARRO: SetupVarrock();
@@ -855,13 +925,16 @@ begin
   if not RSClient.IsLoggedIn() then
     Exit();
 
-  if not Timer.ElapsedTime() > 40000 then
-    WriteDebug('Lost')
-  else if Course = POLLNIV then
+  WriteDebug('Lost!');
+
+  if Timer.ElapsedTime() < 30000 then
+    Exit();
+
+  if Course = POLLNIV then
   begin
-    Magic.MouseSpell(ReturnSpell);
-    Mouse.Click(MOUSE_RIGHT);
-    ChooseOption.Select('Outside');
+    Magic.CastSpell(ERSSpell.TELEPORT_TO_HOUSE);
+    WaitEx(5775, 555);
+    Logout.ClickLogout();
   end else
     Magic.CastSpell(ReturnSpell);
 
