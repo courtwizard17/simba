@@ -1,0 +1,101 @@
+program crabs;
+{$I WaspLib/osr.simba}
+
+type
+  TCrabGUI = record (TScriptForm)
+    SingleCheckbox, DoubleCheckbox,
+    TripleCheckbox, QuadCheckbox: TLabeledCheckbox;
+    BreakForInput, BreakAfterInput: TLabeledEdit;
+  end;
+
+var
+  SingleSpawn, DoubleSpawn, TripleSpawn, QuadSpawn: Boolean;
+  BreakFor, BreakAfter: Int32;
+
+procedure TCrabGUI.StartScript(Sender: TObject); override;
+begin
+  SingleSpawn := Self.SingleCheckbox.IsChecked();
+  DoubleSpawn := Self.DoubleCheckbox.IsChecked();
+  TripleSpawn := Self.TripleCheckbox.IsChecked();
+  QuadSpawn := Self.QuadCheckbox.IsChecked();
+  BreakFor := Self.BreakForInput.GetText().ExtractInteger();
+  BreakAfter := Self.BreakAfterInput.GetText().ExtractInteger();
+  inherited;
+end;
+
+procedure TCrabGUI.Run(); override;
+var
+  Tab: TTabSheet;
+begin
+  Self.Setup('Sand Crabs', Point(800, 500), False);
+  Self.Start.SetOnClick(@Self.StartScript);
+  Self.AddTab('Settings');
+  Tab := Self.GetTab('Settings');
+
+  with Self.BreakAfterInput do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(160));
+    SetCaption('Break After:');
+    SetText('60');
+  end;
+
+  with Self.BreakForInput do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(200));
+    SetCaption('Break For:');
+    SetText('20');
+  end;
+
+  with Self.SingleCheckbox do
+  begin
+    Create(Tab);
+    SetCaption('Use spots with one crab spawn');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(160));
+  end;
+
+  with Self.DoubleCheckbox do
+  begin
+    Create(Tab);
+    SetCaption('Use spots with two crab spawns');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(190));
+  end;
+
+  with Self.TripleCheckbox do
+  begin
+    Create(Tab);
+    SetCaption('Use spots with three crab spawns');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(220));
+  end;
+
+  with Self.QuadCheckbox do
+  begin
+    Create(Tab);
+    SetCaption('Use spots with four crab spawns');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(250));
+  end;
+
+  Self.CreateAccountManager(Tab);
+  inherited;
+end;
+
+var
+  GUI: TCrabGUI;
+
+begin
+  GUI.Run();
+
+  Writeln("Single Spots: ", SingleSpawn);
+  Writeln("Double Spots: ", DoubleSpawn);
+  Writeln("Triple Spots: ", TripleSpawn);
+  Writeln("Quadra Spots: ", QuadSpawn);
+  WriteLn(BreakFor);
+  WriteLn(BreakAfter);
+end.
