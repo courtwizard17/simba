@@ -502,9 +502,7 @@ begin
 
   if ShouldRefill() then
     if AllSpotsCleared() then
-      Exit(REFILL)
-    else
-      Exit(WAIT_STATE);
+      Exit(REFILL);
 
   if AnyNeedsWatering() then
     Exit(WATER);
@@ -514,6 +512,8 @@ begin
 
   if not ShouldRefill() then
     Exit(PLANT);
+
+  Exit(WAIT_STATE);
 end;
 
 procedure Farm();
