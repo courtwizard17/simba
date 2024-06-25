@@ -899,6 +899,7 @@ procedure NormalStep(Step: Int32);
 var
   Found: Boolean;
   hp, xp: Int32;
+  Pos: TPoint;
 begin
   if not RSClient.IsLoggedIn() then
     Exit();
@@ -917,8 +918,18 @@ begin
     WaitUntil((xp < XPBar.Read()) or (hp > Minimap.GetHPLevel()), 250, 12775);
     Wait(Obstacles[Step].Wait);
   end else
-    KeyboardRotate();
-end;
+  begin
+    Pos := AgilityRSW.GetMyPos();
+
+    if not Pos.InBox(Obstacles[Step].Area) then
+      Exit();
+
+    if Timer.ElapsedTime() > 12000 then
+      AgilityRSW.WalkBlind(Obstacles[Step].Tile)
+    else
+      Antiban.RandomRotate();
+  end;
+end;  
 
 procedure RecoverFromLost();
 begin
