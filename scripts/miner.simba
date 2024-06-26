@@ -164,7 +164,7 @@ begin
     IRON: SetupIron();
   end;
 
-  BankChest.SetupUpText(['Bank']);
+  BankChest.SetupUpText(['chest']);
   BankChest.Setup(2, [[6383, 628]]);
   BankChest.Finder.Colors += CTS2(3948881, 11, 0.37, 1.05);
 
@@ -257,7 +257,7 @@ end;
 
 procedure LoopScript();
 begin
-  Antiban.DoAntiban(False, False);
+  Antiban.DoAntiban();
 
   if not RSClient.IsLoggedIn() then
     Login.LoginPlayer();
