@@ -1,8 +1,8 @@
-program cooker;
+program smelter;
 {$I WaspLib/osr.simba}
 
 begin
-  Login.PlayerIndex := 0;
+  Login.PlayerIndex := 2;
   ItemFinder.Similarity := 0.999999;
 end;
 
@@ -10,7 +10,7 @@ type
   EMode = (STEEL, CBALLS);
 
 const
-  Mode = CBALLS;
+  Mode = STEEL;
 
 var
   RSW: TRSWalker;
@@ -237,6 +237,9 @@ begin
 
   if not RSClient.IsLoggedIn() then
     Login.LoginPlayer();
+
+  if RSInterface.IsOpen() then
+    RSInterface.Close(50);
 
   CalculateXP();
 
