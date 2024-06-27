@@ -15,7 +15,7 @@ const
   BREAKFOR   = 8;
 
   BHRUNS     = True;
-  INTERVAL   = 40* ONE_MINUTE;
+  INTERVAL   = 0* ONE_MINUTE;
   SEED       = 'Hammerstone seed';
 
   EXTRA_ANTIBAN = True; (* Adds longer wait times and short breaks, "non-focused player" *)
@@ -826,7 +826,12 @@ begin
 
   if Birdhouses then
     if BirdHouseRunner.CanDoBirdHouseRun() then
-      BirdHouseRunner.DoBirdHouseRun();
+    begin
+      Pos := AgilityRSW.GetMyPos();
+      if Pos.InBox(Obstacles[0].Area) then
+        BirdHouseRunner.DoBirdHouseRun();
+    end;
+
 
   Found := FindObstacle(Obstacles[0]);
   RSClient.Image.Clear();
