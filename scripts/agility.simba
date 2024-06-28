@@ -853,8 +853,6 @@ begin
       AgilityRSW.WebWalk(StartTile)
     else if Pos.DistanceTo(StartTile) > 32 then
       AgilityRSW.WalkBlind(StartTile)
-    else if SRL.Dice(50) then
-      KeyboardRotate()
     else
       Antiban.RandomRotate();
   end;
@@ -904,7 +902,6 @@ procedure NormalStep(Step: Int32);
 var
   Found: Boolean;
   hp, xp: Int32;
-  Pos: TPoint;
 begin
   if not RSClient.IsLoggedIn() then
     Exit();
@@ -923,18 +920,8 @@ begin
     WaitUntil((xp < XPBar.Read()) or (hp > Minimap.GetHPLevel()), 250, 12775);
     Wait(Obstacles[Step].Wait);
   end else
-  begin
-    Pos := AgilityRSW.GetMyPos();
-
-    if not Pos.InBox(Obstacles[Step].Area) then
-      Exit();
-
-    if Timer.ElapsedTime() > 12000 then
-      AgilityRSW.WalkBlind(Obstacles[Step].Tile)
-    else
-      Antiban.RandomRotate();
-  end;
-end;  
+    Antiban.RandomRotate();
+end;
 
 procedure RecoverFromLost();
 begin
