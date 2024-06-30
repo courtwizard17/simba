@@ -2,27 +2,28 @@ program guildminer;
 {$I WaspLib/osr.simba}
 
 begin
-  Login.PlayerIndex := 0;
+  Login.PlayerIndex := 2;
 end;
 
 type
   EOre = (COAL, IRON);
 
 const
-  BREAKAFTER = 60;
+  BREAKAFTER = 44;
   BREAKFOR   = 6;
 
   EXTRA_ANTIBAN = True; (* Adds longer wait times and short breaks, "non-focused player" *)
 
 var
   RSW: TRSWalker;
+  Gloves: Boolean;
   Ore: EOre = IRON;
   F: TRSObjectFinder;
   BankChest: TRSObject;
   UpText: TStringArray;
   OreTiles: TPointArray;
   Timer, ReportTimer: TStopwatch;
-  StartXP, CurrentXP, GainedXP: Int32;
+  StartXP, CurrentXP, GainedXP, Banked: Int32;
 
 procedure WriteDebug(Message: String);
 begin
@@ -41,6 +42,10 @@ begin
   Total := ToStr(Round((GainedXP/1000), 0), ' k ');
   Hourly := ToStr('(', Round((GainedXP/(Hours*1000)), 1), ' k / hr)');
   WriteLn(SRL.TimeStamp(), ':[Experience]: ', Total, Hourly);
+
+  Total := ToStr(Banked);
+  Hourly := ToStr( '(', Round((Banked/(Hours)), 0), ' / hr)');
+  WriteLn(SRL.TimeStamp(), ':[Banked]: ', Total, Hourly);
 
   ReportTimer.Reset();
 end;
@@ -143,6 +148,11 @@ begin
   F.ClusterDistance := 10;
 end;
 
+function CheckGloves(): Boolean;
+begin
+  Result := Equipment.ContainsAny(['Expert mining gloves', 'Mining gloves', 'Superior mining gloves']);
+end;
+
 procedure InitiateScript();
 begin
   RSW.Setup([[6000, 500, 6900, 800], [7100, 2900, 7850, 3400]], 2);
@@ -163,6 +173,9 @@ begin
     COAL: SetupCoal();
     IRON: SetupIron();
   end;
+
+  Gloves := CheckGloves();
+  WriteDebug(ToStr('Using mining gloves: ', Gloves));
 
   BankChest.SetupUpText(['chest']);
   BankChest.Setup(2, [[6383, 628]]);
@@ -222,6 +235,18 @@ begin
   Exit(False);
 end;
 
+procedure WaitMining(Tile: TPoint);
+begin
+  if Gloves then
+  begin
+    if Inventory.CountEmptySlots() = 28 then
+      WaitEx(2500, 555);
+
+    WaitUntil((not TileHasOre(Tile) or Inventory.IsFull()), 250, 12750);
+  end else
+    XPBar.WaitXP(7775);
+end;
+
 procedure GatherOres();
 var
   Pos, Tile: TPoint;
@@ -232,7 +257,7 @@ begin
   if FindOre(Tile) then
   begin
     Mouse.Click(MOUSE_LEFT);
-    WaitUntil((not TileHasOre(Tile) or Inventory.IsFull()), 250, 12750);
+    WaitMining(Tile);
   end else
   if SRL.Dice(50) then
     Antiban.RandomRotate()
@@ -241,6 +266,8 @@ begin
 end;
 
 procedure DepositOres();
+var
+  CarriedOres: Int32;
 begin
   if BankChest.Click() then
     WaitUntil(Bank.IsOpen(), 250, 12750)
@@ -249,6 +276,10 @@ begin
 
   if not Bank.IsOpen() then
     Exit();
+
+  CarriedOres += Inventory.CountItem('Iron ore');
+  CarriedOres += Inventory.CountItem('Coal');
+  Banked += CarriedOres;
 
   Bank.DepositAll();
   WaitEx(555, 550);
