@@ -17,7 +17,8 @@ const
 var
   RSW: TRSWalker;
   Gloves: Boolean;
-  Ore: EOre = IRON;
+  OreItem: TRSItem;
+  Ore: EOre = COAL;
   F: TRSObjectFinder;
   BankChest: TRSObject;
   UpText: TStringArray;
@@ -136,6 +137,7 @@ begin
   UpText := ['Iron'];
   F.Colors += CTS2(2832212, 9, 0.06, 0.22);
   F.ClusterDistance := 10;
+  OreItem := 'Iron ore';
 end;
 
 procedure SetupCoal();
@@ -146,6 +148,7 @@ begin
   UpText := ['Coal'];
   F.Colors += CTS2(2833726, 10, 0.10, 0.51);
   F.ClusterDistance := 10;
+  OreItem := 'Coal';
 end;
 
 function CheckGloves(): Boolean;
@@ -235,16 +238,23 @@ begin
   Exit(False);
 end;
 
-procedure WaitMining(Tile: TPoint);
+procedure InteractWithRock(Tile: TPoint);
+var
+  CachedXP: Int32;
 begin
+  CachedXP := XPBar.Read();
+  Mouse.Click(MOUSE_LEFT);
+
   if Gloves then
   begin
     if Inventory.CountEmptySlots() = 28 then
-      WaitEx(2500, 555);
+      WaitEx(4500, 555);
 
-    WaitUntil((not TileHasOre(Tile) or Inventory.IsFull()), 250, 12750);
+    WaitUntil((not TileHasOre(Tile) or Inventory.IsFull()), 250, SRL.NormalRange(8000, 12000));
   end else
-    XPBar.WaitXP(7775);
+  begin
+    WaitUntil((CachedXP < XPBar.Read()), 300, SRL.NormalRange(8000, 12000));
+  end;
 end;
 
 procedure GatherOres();
@@ -255,19 +265,14 @@ begin
   OreTiles.Sort(Pos);
 
   if FindOre(Tile) then
-  begin
-    Mouse.Click(MOUSE_LEFT);
-    WaitMining(Tile);
-  end else
-  if SRL.Dice(50) then
+    InteractWithRock(Tile)
+  else if SRL.Dice(50) then
     Antiban.RandomRotate()
   else
     RSW.WalkBlind(OreTiles[0]);
 end;
 
 procedure DepositOres();
-var
-  CarriedOres: Int32;
 begin
   if BankChest.Click() then
     WaitUntil(Bank.IsOpen(), 250, 12750)
@@ -277,10 +282,7 @@ begin
   if not Bank.IsOpen() then
     Exit();
 
-  CarriedOres += Inventory.CountItem('Iron ore');
-  CarriedOres += Inventory.CountItem('Coal');
-  Banked += CarriedOres;
-
+  Banked += Inventory.CountItem(OreItem);
   Bank.DepositAll();
   WaitEx(555, 550);
   Bank.Close(55);
