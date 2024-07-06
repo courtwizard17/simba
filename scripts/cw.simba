@@ -1,8 +1,8 @@
-program cwars;
+program cw;
 {$I WaspLib/osr.simba}
 
 begin
-  Login.PlayerIndex := 1;
+  Login.PlayerIndex := 0;
 end;
 
 const
@@ -39,21 +39,6 @@ begin
   finally
     FreeHTTPClient(Client);
   end;
-end;
-
-procedure KeyboardRotate();
-var
-  Arrow: Integer;
-  Duration: Int64;
-begin
-  if SRL.Dice(50) then
-    Arrow := $25
-  else
-    Arrow := $27;
-  Duration := SRL.NormalRange(250, 1170);
-  Keyboard.KeyDown(Arrow);
-  Sleep(Duration);
-  Keyboard.KeyUp(Arrow);
 end;
 
 procedure WriteDebug(Message: String);
@@ -153,7 +138,6 @@ begin
   Antiban.AddTask(ONE_MINUTE*6,   @Antiban.HoverMSPlayers);
   Antiban.AddTask(ONE_MINUTE*4,   @Antiban.RandomRotate);
   Antiban.AddTask(ONE_MINUTE*3,   @Antiban.DoLoseFocus);
-  Antiban.AddTask(ONE_MINUTE*7,   @KeyboardRotate);
   Antiban.AddTask(ONE_MINUTE*8,   @Antiban.HoverMSNPCs);
   Antiban.AddBreak(BREAKAFTER * ONE_MINUTE, BREAKFOR * ONE_MINUTE, 0.2, 1);
 end;
@@ -180,7 +164,7 @@ begin
   end;
 
   WriteDebug('Failed to find Guthix Portal, rotating camera.');
-  KeyboardRotate();
+  Antiban.RandomRotate();
 end;
 
 procedure HandleBandageRoom(Team: ETeam);
@@ -209,7 +193,7 @@ begin
   end;
 
   WriteDebug('Failed to exit the bandage room, rotating camera.');
-  KeyboardRotate();
+  Antiban.RandomRotate();
 end;
 
 procedure SetAreas();
