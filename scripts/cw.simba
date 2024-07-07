@@ -303,7 +303,6 @@ begin
   SetAreas();
   SetCWObjects();
 
-  Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
   Options.SetZoomLevel(Random(0, 5));
   Mouse.Speed := SRL.NormalRange(12, 18);
 end;
