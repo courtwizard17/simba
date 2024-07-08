@@ -41,6 +41,15 @@ begin
   end;
 end;
 
+function InBandageRoom(): Boolean;
+var
+  ExitTextColor: TCTS2Color := CTS2(65535, 1, 0.01, 0.01);
+  Amount: Int32;
+begin
+  Amount := SRL.CountColor(ExitTextColor, Mainscreen.Bounds());
+  Result := Amount > 425;
+end;
+
 procedure WriteDebug(Message: String);
 begin
   WriteLn(SRL.TimeStamp(), ':[Script]: ', Message);
@@ -59,11 +68,14 @@ begin
   if ZWRoomArea.Contains(Pos) then
     Exit(Z_WAITROOM);
 
-  if SBRoomArea.Contains(Pos) then
-    Exit(S_BANDAGEROOM);
+  if InBandageRoom() then
+  begin
+    if SBRoomArea.Contains(Pos) then
+      Exit(S_BANDAGEROOM);
 
-  if ZBRoomArea.Contains(Pos) then
-    Exit(Z_BANDAGEROOM);
+    if ZBRoomArea.Contains(Pos) then
+      Exit(Z_BANDAGEROOM);
+  end;
 
   Exit(INGAME);
 end;
