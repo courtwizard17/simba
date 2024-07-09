@@ -1,6 +1,6 @@
 program agility;
 {$I WaspLib/osr.simba}
-{$I ../Includes/BHI.simba}
+{$I ../Includes/BirdhouseInclude.simba}
 
 begin
   Login.PlayerIndex := 0;
