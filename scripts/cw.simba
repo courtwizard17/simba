@@ -324,7 +324,7 @@ begin
   repeat
     begin
       ScriptLoop();
-      WaitEx(2275, 1255);
+      WaitEx(1275, 1255);
     end;
   until false;
 end.
