@@ -12,12 +12,12 @@ type
 const
   WOOD: EWOODTYPES = WILLOW;
 
-  BREAKAFTER  = 60;
+  BREAKAFTER  = 42;
   BREAKFOR    = 6;
 
   BIRDHOUSES  = False;
-  INTERVAL    = 50 * ONE_MINUTE;
-  SEED        = 'Hammerstone seed';
+  INTERVAL    = 40 * ONE_MINUTE;
+  SEED        = 'Potato seed';
 
 var
   Timer, ReportTimer: TStopwatch;
@@ -114,7 +114,7 @@ end;
 
 procedure TAntiban.DoLoseFocus();
 begin
-  Self.LoseFocus(SRL.NormalRange(450, 2750));
+  Self.LoseFocus(SRL.NormalRange(1450, 2750));
 end;
 
 procedure WriteDebug(Message: String);
