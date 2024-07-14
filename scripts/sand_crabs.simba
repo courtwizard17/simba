@@ -9,6 +9,10 @@ type
     FoodInput, PotionInput: TLabeledCombobox;
   end;
 
+  TSpot = record
+    Tile, ResetTile: TPoint;
+  end;
+
   EState = ( RESTOCK, RESET, IDLE, HEAL, BOOST, RETURN, TERMINATE );
 
 var
@@ -16,6 +20,7 @@ var
   BreakFor, BreakAfter, StartXP, CurrentXP, GainedXP: Int32;
   SingleSpawn, DoubleSpawn, TripleSpawn, QuadSpawn,
   UsePotions, DebugMode: Boolean;
+  Spots: Array of TSpot;
   Potion, Food: TRSItem;
   RSW: TRSWalker;
   GUI: TCrabGUI;
@@ -105,7 +110,106 @@ begin
   ReportTimer.Reset();
 end;
 
-procedure InitiateScript();
+procedure SetSpots();
+var
+  i: Int32;
+begin
+  if QuadSpawn then
+  begin
+    WriteDebug('Adding spots with 4 spawns.');
+    SetLength(Spots, Length(Spots) + 1);
+
+    Inc(i);
+    with Spots[i-1] do
+    begin
+      Tile := [];
+      ResetTile := [];
+    end;
+  end;
+
+  if TripleSpawn then
+  begin
+    WriteDebug('Adding spots with 3 spawns.');
+    SetLength(Spots, Length(Spots) + 3);
+
+    Inc(i);
+    with Spots[i-1] do
+    begin
+      Tile := [];
+      ResetTile := [];
+    end;
+
+    Inc(i);
+    with Spots[i-1] do
+    begin
+      Tile := [];
+      ResetTile := [];
+    end;
+
+    Inc(i);
+    with Spots[i-1] do
+    begin
+      Tile := [];
+      ResetTile := [];
+    end;
+  end;
+
+  if DoubleSpawn then
+  begin
+    WriteDebug('Adding spots with 2 spawns.');
+    SetLength(Spots, Length(Spots) + 3);
+
+    Inc(i);
+    with Spots[i-1] do
+    begin
+      Tile := [];
+      ResetTile := [];
+    end;
+
+    Inc(i);
+    with Spots[i-1] do
+    begin
+      Tile := [];
+      ResetTile := [];
+    end;
+
+    Inc(i);
+    with Spots[i-1] do
+    begin
+      Tile := [];
+      ResetTile := [];
+    end;
+  end;
+
+  if SingleSpawn then
+  begin
+    WriteDebug('Adding spots with 1 spawns.');
+    SetLength(Spots, Length(Spots) + 3);
+
+    Inc(i);
+    with Spots[i-1] do
+    begin
+      Tile := [];
+      ResetTile := [];
+    end;
+
+    Inc(i);
+    with Spots[i-1] do
+    begin
+      Tile := [];
+      ResetTile := [];
+    end;
+
+    Inc(i);
+    with Spots[i-1] do
+    begin
+      Tile := [];
+      ResetTile := [];
+    end;
+  end;
+end;
+
+procedure Init();
 begin
   if not RSClient.IsLoggedIn() then
     Login.LoginPlayer();
@@ -133,6 +237,7 @@ begin
   end;
 
   Mouse.Speed := SRL.NormalRange(11, 18);
+  SetSpots();
 
   InactivityTimer.Start();
   ReportTimer.Start();
@@ -154,7 +259,7 @@ begin
 
 end;
 
-procedure ScriptLoop();
+procedure Loop();
 var
   State: EState;
 begin
@@ -274,7 +379,7 @@ end;
 
 begin
   GUI.Run();
-  //InitiateScript();
+  //Init();
 
   Writeln("Single Spots: ", SingleSpawn);
   Writeln("Double Spots: ", DoubleSpawn);
@@ -286,6 +391,6 @@ begin
   WriteLn(Potion);
 
   //repeat
-  //  ScriptLoop();
+  //  Loop();
   //until False;
 end.
