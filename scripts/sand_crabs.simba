@@ -2,10 +2,9 @@ program crabs;
 {$I WaspLib/osr.simba}
 
 type
-
   TCrabGUI = record (TScriptForm)
-    SingleCheckbox, DoubleCheckbox,
-    TripleCheckbox, QuadCheckbox: TLabeledCheckbox;
+    SingleCheckbox, DoubleCheckbox, TripleCheckbox,
+    QuadCheckbox, DebugCheckbox: TLabeledCheckbox;
     BreakForInput, BreakAfterInput: TLabeledEdit;
     FoodInput, PotionInput: TLabeledCombobox;
   end;
@@ -15,11 +14,10 @@ type
 var
   InactivityTimer, PotionTimer, CombatTimer, ReportTimer: TStopwatch;
   BreakFor, BreakAfter, StartXP, CurrentXP, GainedXP: Int32;
-  SingleSpawn, DoubleSpawn, TripleSpawn,
-  QuadSpawn, UsePotions: Boolean;
+  SingleSpawn, DoubleSpawn, TripleSpawn, QuadSpawn,
+  UsePotions, DebugMode: Boolean;
   Potion, Food: TRSItem;
   RSW: TRSWalker;
-  State: EState;
   GUI: TCrabGUI;
 
 procedure TCrabGUI.StartScript(Sender: TObject); override;
@@ -28,6 +26,7 @@ begin
   DoubleSpawn := Self.DoubleCheckbox.IsChecked();
   TripleSpawn := Self.TripleCheckbox.IsChecked();
   QuadSpawn := Self.QuadCheckbox.IsChecked();
+  DebugMode := Self.DebugCheckbox.IsChecked();
   BreakFor := Self.BreakForInput.GetText().ExtractInteger();
   BreakAfter := Self.BreakAfterInput.GetText().ExtractInteger();
   Food := Self.FoodInput.GetText();
@@ -143,13 +142,44 @@ function GetState(): EState;
 var
   Pos: TPoint;
 begin
+  if not RSClient.IsLoggedIn() then
+    Exit(IDLE);
+
+  if not Inventory.ContainsItem(Food) then
+    Exit(RESTOCK);
+
+  if Minimap.GetHPPercent() < SRL.NormalRange(40, 60) then
+    Exit(HEAL);
 
 
 end;
 
 procedure ScriptLoop();
+var
+  State: EState;
 begin
+  if not RSClient.IsLoggedIn() then
+    Login.LoginPlayer();
 
+  State := GetState();
+  CalculateXP();
+  PrintProgress();
+
+  if DebugMode then
+    WriteDebug(ToStr('State: ', State));
+
+  case State of
+    TERMINATE: TerminateScript();
+    RESTOCK: Wait(1000);
+    RETURN: Wait(1000);
+    RESET: Wait(1000);
+    BOOST: Wait(1000);
+    IDLE: Wait(1000);
+    HEAL: Wait(1000);
+  end;
+
+  Antiban.DoAntiban(False, False);
+  WaitEx(100, 95);
 end;
 
 procedure TCrabGUI.Run(); override;
@@ -209,6 +239,14 @@ begin
     SetCaption('Use spots with four crab spawns');
     SetLeft(TControl.AdjustToDPI(380));
     SetTop(TControl.AdjustToDPI(250));
+  end;
+
+  with Self.DebugCheckbox do
+  begin
+    Create(Tab);
+    SetCaption('Run in debug mode');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(280));
   end;
 
   with Self.FoodInput do
