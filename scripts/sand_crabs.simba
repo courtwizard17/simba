@@ -3,10 +3,10 @@ program crabs;
 
 type
   TCrabGUI = record (TScriptForm)
-    SingleCheckbox, DoubleCheckbox, TripleCheckbox,
-    QuadCheckbox, DebugCheckbox: TLabeledCheckbox;
     BreakForInput, BreakAfterInput: TLabeledEdit;
     FoodInput, PotionInput: TLabeledCombobox;
+    SingleCheckbox, DoubleCheckbox, TripleCheckbox,
+    QuadCheckbox: TLabeledCheckbox;
   end;
 
   TSpot = record
@@ -18,10 +18,11 @@ type
 var
   InactivityTimer, PotionTimer, CombatTimer, ReportTimer: TStopwatch;
   BreakFor, BreakAfter, StartXP, CurrentXP, GainedXP: Int32;
-  SingleSpawn, DoubleSpawn, TripleSpawn, QuadSpawn,
-  UsePotions, DebugMode: Boolean;
+  SingleSpawn, DoubleSpawn, TripleSpawn,
+  QuadSpawn, UsePotions: Boolean;
+  Potion, Pot, Food: TRSItem;
   Spots: Array of TSpot;
-  Potion, Food: TRSItem;
+  BankChest: TRSObject;
   RSW: TRSWalker;
   GUI: TCrabGUI;
 
@@ -31,11 +32,11 @@ begin
   DoubleSpawn := Self.DoubleCheckbox.IsChecked();
   TripleSpawn := Self.TripleCheckbox.IsChecked();
   QuadSpawn := Self.QuadCheckbox.IsChecked();
-  DebugMode := Self.DebugCheckbox.IsChecked();
   BreakFor := Self.BreakForInput.GetText().ExtractInteger();
   BreakAfter := Self.BreakAfterInput.GetText().ExtractInteger();
   Food := Self.FoodInput.GetText();
   Potion := (Self.PotionInput.GetText() + "(4)");
+  Pot := Self.PotionInput.GetText();
   inherited;
 end;
 
@@ -68,12 +69,12 @@ end;
 procedure SetupAntiban();
 begin
   Antiban.Skills := [ERSSKILL.HITPOINTS, ERSSKILL.TOTAL];
-  Antiban.AddTask(ONE_MINUTE*2,   @Mouse.RandomMovement);
-  Antiban.AddTask(ONE_MINUTE*6,   @Antiban.HoverMSPlayers);
-  Antiban.AddTask(ONE_MINUTE*3,   @Antiban.DoLoseFocus);
-  Antiban.AddTask(ONE_MINUTE*7,   @Antiban.RandomRotate);
-  Antiban.AddTask(ONE_MINUTE*8,   @Antiban.HoverMSNPCs);
-  Antiban.AddTask(ONE_MINUTE*25,  @Antiban.HoverSkills);
+  Antiban.AddTask(ONE_MINUTE*2, @Mouse.RandomMovement);
+  Antiban.AddTask(ONE_MINUTE*6, @Antiban.HoverMSPlayers);
+  Antiban.AddTask(ONE_MINUTE*3, @Antiban.DoLoseFocus);
+  Antiban.AddTask(ONE_MINUTE*7, @Antiban.RandomRotate);
+  Antiban.AddTask(ONE_MINUTE*8, @Antiban.HoverMSNPCs);
+  Antiban.AddTask(ONE_MINUTE*25, @Antiban.HoverSkills);
   Antiban.AddBreak(BreakAfter * ONE_MINUTE, BreakFor * ONE_MINUTE, 0.3, 1);
   Antiban.OnStartBreak := @PauseTimer;
   Antiban.OnFinishBreak := @ResumeTimer;
@@ -115,22 +116,27 @@ begin
     Exit(True);
   end;
 
-  if Chat.FindMessage
+  if Chat.FindMessage('is no ammo left') then
   begin
-    WriteDebug('Out of ammo or runes, terminating.');
+    WriteDebug('Out of ammo, terminating.');
     Exit(True);
   end;
 
-  if Chat.FindMessage
+  if Chat.FindMessage('to cast this spell') then
   begin
-    WriteDebug('Out of ammo or runes, terminating.');
+    WriteDebug('Out of runes, terminating.');
     Exit(True);
   end;
 
   Exit(False);
 end;
 
-procedure SetSpots();
+function InCombat(WaitTime: Int32 = 1000): Boolean;
+begin
+  Result := WaitUntil((Length(Mainscreen.FindHitsplats()) > 0), 250, WaitTime);
+end;
+
+procedure SetupSpots();
 var
   i: Int32;
 begin
@@ -142,91 +148,73 @@ begin
     Inc(i);
     with Spots[i-1] do
     begin
-      Tile := [];
-      WalkTile := [];
+      Tile := [567, 933];
+      WalkTile := [575, 909];
     end;
   end;
 
   if TripleSpawn then
   begin
     WriteDebug('Adding spots with 3 spawns.');
-    SetLength(Spots, Length(Spots) + 3);
+    SetLength(Spots, Length(Spots) + 1);
 
     Inc(i);
     with Spots[i-1] do
     begin
-      Tile := [];
-      WalkTile := [];
-    end;
-
-    Inc(i);
-    with Spots[i-1] do
-    begin
-      Tile := [];
-      WalkTile := [];
-    end;
-
-    Inc(i);
-    with Spots[i-1] do
-    begin
-      Tile := [];
-      WalkTile := [];
+      Tile := [515, 793];
+      WalkTile := [539, 781];
     end;
   end;
 
   if DoubleSpawn then
   begin
     WriteDebug('Adding spots with 2 spawns.');
-    SetLength(Spots, Length(Spots) + 3);
+    SetLength(Spots, Length(Spots) + 1);
 
     Inc(i);
     with Spots[i-1] do
     begin
-      Tile := [];
-      WalkTile := [];
-    end;
-
-    Inc(i);
-    with Spots[i-1] do
-    begin
-      Tile := [];
-      WalkTile := [];
-    end;
-
-    Inc(i);
-    with Spots[i-1] do
-    begin
-      Tile := [];
-      WalkTile := [];
+      Tile := [509, 727];
+      WalkTile := [519, 713];
     end;
   end;
 
   if SingleSpawn then
   begin
     WriteDebug('Adding spots with 1 spawns.');
-    SetLength(Spots, Length(Spots) + 3);
+    SetLength(Spots, Length(Spots) + 1);
 
     Inc(i);
     with Spots[i-1] do
     begin
-      Tile := [];
-      WalkTile := [];
-    end;
-
-    Inc(i);
-    with Spots[i-1] do
-    begin
-      Tile := [];
-      WalkTile := [];
-    end;
-
-    Inc(i);
-    with Spots[i-1] do
-    begin
-      Tile := [];
-      WalkTile := [];
+      Tile := [519, 817];
+      WalkTile := [543, 809];
     end;
   end;
+
+  WriteDebug(ToStr('Starting with: ', Length(Spots), ' spots.'));
+end;
+
+procedure DownloadMap(const URL, Filename: String);
+var
+  Client: Int32;
+begin
+  Client := InitializeHTTPClient(False);
+  try
+    GetHTTPPageEx(Client, URL, Filename);
+  finally
+    FreeHTTPClient(Client);
+  end;
+end;
+
+procedure SetupWalker();
+var
+  MapURL: String := 'https://i.imgur.com/GIfgIaU.png';
+begin
+  if not FileExists(AppPath+'\Includes\WaspLib\osr\walker\maps\crabmap.png') then
+    DownloadMap(MapURL, AppPath+'\Includes\WaspLib\osr\walker\maps\crabmap.png');
+
+  RSW.Setup('crabmap', 2);
 end;
 
 procedure Init();
@@ -241,26 +229,54 @@ begin
   if StartXP < 1 then
     TerminateScript('Failed to read XP, make sure XPBar is set up!');
 
-  Options.SetZoomLevel(Random(10, 16));
+  Options.SetZoomLevel(Random(4, 10));
+  Mouse.Speed := SRL.NormalRange(11, 18);
 
-  RSW.SetupRegion([6000, 2200, 8000, 5000], 2);
+  SetupWalker();
   SetupAntiban();
+  SetupSpots();
 
   if Potion = '(4)' then
   begin
     WriteDebug('Starting without potions.');
     UsePotions := False;
+    PotionTimer.Pause();
   end else
   begin
     WriteDebug(ToStr('Potion: ' + Potion));
     UsePotions := True;
+    PotionTimer.Start();
   end;
 
-  Mouse.Speed := SRL.NormalRange(11, 18);
-  SetSpots();
+  with BankChest do
+  begin
+    Finder.Colors += CTS2(3227206, 7, 0.15, 0.39);
+    Setup(2, [[285, 339]]);
+    SetupUpText(['Bank chest']);
+  end;
 
   InactivityTimer.Start();
   ReportTimer.Start();
+end;
+
+function AtValidSpot(): Boolean;
+var
+  S: TSpot;
+begin
+  for S in Spots do
+    if RSW.AtTile(S.Tile, 6) then
+      Exit(True);
+
+  Exit(False);
+end;
+
+procedure WalkToSafeTile();
+var
+  SafeTile: TPoint := [(511 + Random(-8, 8)), 603 + Random(-8, 0)];
+begin
+  RSW.WalkBlind(SafeTile);
+  WaitUntil(not InCombat(), 500, 10000);
+  Antiban.DoAntiban();
 end;
 
 function GetState(): EState;
@@ -279,17 +295,210 @@ begin
   if ShouldTerminate() then
     Exit(TERMINATE);
 
+  if not AtValidSpot() then
+    Exit(RETURN);
 
+  if UsePotions then
+    if PotionTimer.ElapsedTime() > 290000 then
+      Exit(BOOST);
 
+  if InCombat(14000) then
+    Exit(IDLE);
 
+  Exit(RESET);
 end;
 
-procedure Heal();
+procedure EatFood();
 begin
   if Inventory.ClickItem(Food) then
     WaitEx(1750, 525)
   else
     WriteDebug('Failed to eat food!');
+end;
+
+function TileStepMM(Tile: TPoint): Boolean;
+var
+  MMPt: TPoint;
+begin
+  MMPt := RSW.WorldToMM(Tile);
+  Mouse.Move(MMPt);
+  Mouse.Click(MOUSE_LEFT);
+end;
+
+function TileStepMS(Tile: TPoint): Boolean;
+var
+  Rect: TRectangle;
+  Bounds: TBox;
+begin
+  Rect := RSW.GetTileMs(Tile);
+  Bounds := Rect.Bounds();
+  Bounds.LimitTo(Mainscreen.Bounds());
+  Mouse.HumanMove(Bounds.Center());
+
+  if not Mainscreen.IsUpText('Walk', 275) then
+  begin
+    Mouse.Click(MOUSE_RIGHT);
+    WaitEx(200, 75);
+    ChooseOption.Select('Walk here');
+  end else
+    Mouse.Click(MOUSE_LEFT);
+end;
+
+function WalkToTile(Tile: TPoint): Boolean;
+begin
+  for 0 to 5 do
+  begin
+    if SRL.Dice(60) then
+      TileStepMS(Tile)
+    else
+      TileStepMM(Tile);
+
+    if WaitUntil(RSW.AtTile(Tile, 1), 250, 3000) then
+      Exit(True)
+    else
+      Antiban.RandomRotate();
+  end;
+
+  WriteDebug('Failed to step on tile!');
+end;
+
+function WithdrawPotions(): Boolean;
+var
+  BankItem: TRSBankItem;
+begin
+  WriteDebug('Trying to withdraw potions.');
+
+  if not Bank.IsOpen() then
+    Exit(False);
+
+  BankItem := TRSBankItem.Setup(Potion, Random(2, 5), False);
+  Result := Bank.WithdrawItem(BankItem, False);
+
+  if Result then
+    WriteDebug('Successfully withdrew potions.')
+  else
+    WriteDebug('Failed to withdraw potions.');
+end;
+
+function WithdrawFood(): Boolean;
+var
+  BankItem: TRSBankItem;
+begin
+  WriteDebug('Trying to withdraw food.');
+
+  if not Bank.IsOpen() then
+    Exit(False);
+
+  BankItem := TRSBankItem.Setup(Food, Bank.QUANTITY_ALL, False);
+  Result := Bank.WithdrawItem(BankItem, False);
+
+  if Result then
+    WriteDebug('Successfully withdrew food.')
+  else
+    WriteDebug('Failed to withdraw food.');
+end;
+
+procedure DrinkPotion();
+var
+  Item: TRSItem;
+  i: Int32;
+begin
+  for i := 1 to 4 do
+  begin
+    Item := Pot + '(' + ToStr(i) + ')';
+
+    if Inventory.ClickItem(Item) then
+      Break();
+  end;
+  PotionTimer.Reset();
+end;
+
+procedure RestockSupplies();
+var
+  BankWalkTile: TPoint := [297, 331];
+  Pos: TPoint := RSW.GetMyPos();
+begin
+  (* Box is the Hunter Guild Area, Point is a tile at the Gate *)
+  if not Pos.InBox([263, 245, 424, 392]) then
+    RSW.WalkBlind([459, 309]);
+
+  RSW.WalkBlind(BankWalkTile);
+
+  if BankChest.Click() then
+    WaitUntil(Bank.IsOpen(), 250, 5000);
+
+  if not Bank.IsOpen() then
+    Exit();
+
+  Bank.DepositAll();
+
+  if UsePotions then
+    for 0 to 5 do
+      if WithdrawPotions() then
+        Break();
+
+  for 0 to 5 do
+    if WithdrawFood() then
+      Break();
+
+  WaitEx(275, 222);
+  Bank.Close(50);
+end;
+
+function IsOccupied(Tile: TPoint): Boolean;
+var
+  Pos: TPoint := RSW.GetMyPos();
+  Dots: TPointArray;
+  Rect: TRectangle;
+  Angle: Double;
+  Area: TBox;
+  i: Int32;
+begin
+  Dots := Minimap.GetDots(ERSMinimapDot.PLAYER);
+
+  if Dots.Len() > 0 then
+    Exit(True);
+
+  Angle := Minimap.GetCompassAngle(False);
+  Area := Box(Tile, 18, 18);
+
+  Rect := [RSW.WorldToMM(Pos, [Area.X1, Area.Y1], Angle),
+           RSW.WorldToMM(Pos, [Area.X2, Area.Y1], Angle),
+           RSW.WorldToMM(Pos, [Area.X2, Area.Y2], Angle),
+           RSW.WorldToMM(Pos, [Area.X1, Area.Y2], Angle)];
+
+  for i := 0 to Dots.Len() - 1 do
+    if Rect.Contains(Dots[i]) then
+      Result := True;
+
+  if Result then
+    WriteDebug('We got crashed, moving to next spot.')
+  else
+    WriteDebug('No players detected around this spot.');
+end;
+
+procedure ReturnToSpots();
+var
+  Pos: TPoint;
+  Spot: TSpot;
+begin
+  Pos := RSW.GetMyPos();
+
+  (* Box is the Hunter Guild Area, Point is a tile at the Gate *)
+  if Pos.InBox([263, 245, 424, 392]) then
+    RSW.WalkBlind([459, 309]);
+
+  for Spot in Spots do
+  begin
+    RSW.WalkBlind(Spot.WalkTile);
+    WaitEx(1250, 250);
+
+    if IsOccupied(Spot.Tile) then
+      Continue();
+
+    if WalkToTile(Spot.Tile) then
+      Exit();
+  end;
 end;
 
 procedure Loop();
@@ -299,21 +508,21 @@ begin
   if not RSClient.IsLoggedIn() then
     Login.LoginPlayer();
 
+  if RSInterface.IsOpen() then
+    RSInterface.Close();
+
   State := GetState();
   CalculateXP();
   PrintProgress();
 
-  if DebugMode then
-    WriteDebug(ToStr('State: ', State));
-
   case State of
     TERMINATE: TerminateScript();
-    RESTOCK: Wait(1000);
-    RETURN: Wait(1000);
-    RESET: Wait(1000);
-    BOOST: Wait(1000);
+    RESTOCK: RestockSupplies();
+    RETURN: ReturnToSpots();
+    RESET: WalkToSafeTile();
+    BOOST: DrinkPotion();
     IDLE: Wait(1000);
-    HEAL: Heal();
+    HEAL: EatFood();
   end;
 
   Antiban.DoAntiban(False, False);
@@ -379,21 +588,13 @@ begin
     SetTop(TControl.AdjustToDPI(250));
   end;
 
-  with Self.DebugCheckbox do
-  begin
-    Create(Tab);
-    SetCaption('Run in debug mode');
-    SetLeft(TControl.AdjustToDPI(380));
-    SetTop(TControl.AdjustToDPI(280));
-  end;
-
   with Self.FoodInput do
   begin
     Create(Tab);
     SetCaption('Food');
     SetLeft(TControl.AdjustToDPI(30));
     SetTop(TControl.AdjustToDPI(250));
-    AddItemArray(["Salmon", "Tuna", "Lobster", "Shark", "Manta ray"]);
+    AddItemArray(["Salmon", "Tuna", "Lobster", "Shark", "Manta ray", "Bass"]);
     SetItemIndex(0);
   end;
 
@@ -403,7 +604,8 @@ begin
     SetCaption('Potion');
     SetLeft(TControl.AdjustToDPI(30));
     SetTop(TControl.AdjustToDPI(300));
-    AddItemArray(["Super combat potion", "Super attack", "Super strength", "Attack potion"]);
+    AddItemArray(["Super combat potion", "Super attack", "Super strength", "Attack potion",
+                  "Ranging potion", "Strength potion"]);
   end;
 
   Self.CreateAccountManager(Tab);
@@ -412,18 +614,9 @@ end;
 
 begin
   GUI.Run();
-  //Init();
+  Init();
 
-  Writeln("Single Spots: ", SingleSpawn);
-  Writeln("Double Spots: ", DoubleSpawn);
-  Writeln("Triple Spots: ", TripleSpawn);
-  Writeln("Quadra Spots: ", QuadSpawn);
-  WriteLn(BreakFor);
-  WriteLn(BreakAfter);
-  WriteLn(Food);
-  WriteLn(Potion);
-
-  //repeat
-  //  Loop();
-  //until False;
+  repeat
+    Loop();
+  until False;
 end.
