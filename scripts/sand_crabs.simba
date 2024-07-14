@@ -10,7 +10,7 @@ type
   end;
 
   TSpot = record
-    Tile, ResetTile: TPoint;
+    Tile, WalkTile: TPoint;
   end;
 
   EState = ( RESTOCK, RESET, IDLE, HEAL, BOOST, RETURN, TERMINATE );
@@ -89,9 +89,6 @@ begin
 
   if GainedXP > TempValue then
     InactivityTimer.Reset();
-
-  if InactivityTimer.ElapsedTime() > 300000 then
-    TerminateScript('No Gained XP in 5 mins, stopping!');
 end;
 
 procedure PrintProgress();
@@ -110,6 +107,29 @@ begin
   ReportTimer.Reset();
 end;
 
+function ShouldTerminate(): Boolean;
+begin
+  if InactivityTimer.ElapsedTime() > 300000 then
+  begin
+    WriteDebug('We have not gained XP in 5 minutes, terminating.');
+    Exit(True);
+  end;
+
+  if Chat.FindMessage
+  begin
+    WriteDebug('Out of ammo or runes, terminating.');
+    Exit(True);
+  end;
+
+  if Chat.FindMessage
+  begin
+    WriteDebug('Out of ammo or runes, terminating.');
+    Exit(True);
+  end;
+
+  Exit(False);
+end;
+
 procedure SetSpots();
 var
   i: Int32;
@@ -123,7 +143,7 @@ begin
     with Spots[i-1] do
     begin
       Tile := [];
-      ResetTile := [];
+      WalkTile := [];
     end;
   end;
 
@@ -136,21 +156,21 @@ begin
     with Spots[i-1] do
     begin
       Tile := [];
-      ResetTile := [];
+      WalkTile := [];
     end;
 
     Inc(i);
     with Spots[i-1] do
     begin
       Tile := [];
-      ResetTile := [];
+      WalkTile := [];
     end;
 
     Inc(i);
     with Spots[i-1] do
     begin
       Tile := [];
-      ResetTile := [];
+      WalkTile := [];
     end;
   end;
 
@@ -163,21 +183,21 @@ begin
     with Spots[i-1] do
     begin
       Tile := [];
-      ResetTile := [];
+      WalkTile := [];
     end;
 
     Inc(i);
     with Spots[i-1] do
     begin
       Tile := [];
-      ResetTile := [];
+      WalkTile := [];
     end;
 
     Inc(i);
     with Spots[i-1] do
     begin
       Tile := [];
-      ResetTile := [];
+      WalkTile := [];
     end;
   end;
 
@@ -190,21 +210,21 @@ begin
     with Spots[i-1] do
     begin
       Tile := [];
-      ResetTile := [];
+      WalkTile := [];
     end;
 
     Inc(i);
     with Spots[i-1] do
     begin
       Tile := [];
-      ResetTile := [];
+      WalkTile := [];
     end;
 
     Inc(i);
     with Spots[i-1] do
     begin
       Tile := [];
-      ResetTile := [];
+      WalkTile := [];
     end;
   end;
 end;
@@ -256,7 +276,20 @@ begin
   if Minimap.GetHPPercent() < SRL.NormalRange(40, 60) then
     Exit(HEAL);
 
+  if ShouldTerminate() then
+    Exit(TERMINATE);
 
+
+
+
+end;
+
+procedure Heal();
+begin
+  if Inventory.ClickItem(Food) then
+    WaitEx(1750, 525)
+  else
+    WriteDebug('Failed to eat food!');
 end;
 
 procedure Loop();
@@ -280,7 +313,7 @@ begin
     RESET: Wait(1000);
     BOOST: Wait(1000);
     IDLE: Wait(1000);
-    HEAL: Wait(1000);
+    HEAL: Heal();
   end;
 
   Antiban.DoAntiban(False, False);
