@@ -299,7 +299,7 @@ begin
     Exit(RETURN);
 
   if UsePotions then
-    if PotionTimer.ElapsedTime() > 290000 then
+    if PotionTimer.ElapsedTime() > Random(2250000, 290000) then
       Exit(BOOST);
 
   if InCombat(14000) then
