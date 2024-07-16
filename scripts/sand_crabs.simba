@@ -156,13 +156,27 @@ begin
   if TripleSpawn then
   begin
     WriteDebug('Adding spots with 3 spawns.');
-    SetLength(Spots, Length(Spots) + 1);
+    SetLength(Spots, Length(Spots) + 3);
 
     Inc(i);
     with Spots[i-1] do
     begin
       Tile := [515, 793];
       WalkTile := [539, 781];
+    end;
+
+    Inc(i);
+    with Spots[i-1] do
+    begin
+      Tile := [527, 837];
+      WalkTile := [519, 861];
+    end;
+
+    Inc(i);
+    with Spots[i-1] do
+    begin
+      Tile := [491, 881];
+      WalkTile := [519, 861];
     end;
   end;
 
@@ -272,10 +286,12 @@ end;
 
 procedure WalkToSafeTile();
 var
-  SafeTile: TPoint := [(511 + Random(-8, 8)), 603 + Random(-8, 0)];
+  SafeTile, Pos: TPoint;
 begin
+  WriteDebug('Resetting aggro and taking a break if needed.');
+  Pos := RSW.GetMyPos();
+  SafeTile := [(511 + Random(-8, 8)), (Pos.Y + Random(-150, -130))];
   RSW.WalkBlind(SafeTile);
-  WaitUntil(not InCombat(), 500, 10000);
   Antiban.DoAntiban();
 end;
 
@@ -299,7 +315,7 @@ begin
     Exit(RETURN);
 
   if UsePotions then
-    if PotionTimer.ElapsedTime() > Random(2250000, 290000) then
+    if PotionTimer.ElapsedTime() > Random(225000, 290000) then
       Exit(BOOST);
 
   if InCombat(14000) then
@@ -521,7 +537,7 @@ begin
     RETURN: ReturnToSpots();
     RESET: WalkToSafeTile();
     BOOST: DrinkPotion();
-    IDLE: Wait(1000);
+    IDLE: Antiban.BioWait(1337);
     HEAL: EatFood();
   end;
 
