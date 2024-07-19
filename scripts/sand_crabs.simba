@@ -283,7 +283,7 @@ begin
     if PotionTimer.ElapsedTime() > Random(225000, 290000) then
       Exit(BOOST);
 
-  if InCombat(14000) then
+  if InCombat(21750) then
     Exit(IDLE);
 
   Exit(RESET);
@@ -341,10 +341,10 @@ begin
 
     WaitEx(250, 125);
 
-    if Result and RSW.AtTile(Tile, 1) then
+    if Result and WaitUntil(RSW.AtTile(Tile, 1), 200, 800) then
       Exit(True)
-    else
-      Antiban.RandomRotate();
+    else if SRL.Dice(50) then
+      Antiban.SmallCameraRotation();
   end;
 
   WriteDebug('Failed to step on tile!');
@@ -432,12 +432,10 @@ begin
     Bank.Close(50);
 end;
 
-function IsOccupied(Tile: TPoint): Boolean;
+function IsSpotTaken(Tile: TPoint): Boolean;
 var
   Pos: TPoint := RSW.GetMyPos();
   Dots: TPointArray;
-  Rect: TRectangle;
-  Angle: Double;
   Area: TBox;
   i: Int32;
 begin
@@ -446,16 +444,10 @@ begin
   if Dots.Len() > 0 then
     Exit(True);
 
-  Angle := Minimap.GetCompassAngle(False);
   Area := Box(RSW.WorldToMM(Tile), 18, 18);
 
-  Rect := [RSW.WorldToMM(Pos, [Area.X1, Area.Y1], Angle),
-           RSW.WorldToMM(Pos, [Area.X2, Area.Y1], Angle),
-           RSW.WorldToMM(Pos, [Area.X2, Area.Y2], Angle),
-           RSW.WorldToMM(Pos, [Area.X1, Area.Y2], Angle)];
-
   for i := 0 to Dots.Len() - 1 do
-    if Rect.Contains(Dots[i]) then
+    if Area.Contains(Dots[i]) then
       Result := True;
 
   if Result then
@@ -480,7 +472,7 @@ begin
     else
       Exit();
 
-    if IsOccupied(Spot.Tile) then
+    if IsSpotTaken(Spot.Tile) then
       Continue();
 
     if WalkToTile(Spot.Tile) then
