@@ -2,25 +2,15 @@ program agility;
 {$I WaspLib/osr.simba}
 {$I ../Includes/BirdhouseInclude.simba}
 
-begin
-  Login.PlayerIndex := 0;
-end;
-
 type
-  ECourse = (SEERS, FALLY, DRAYNOR, VARRO, POLLNIV, ARDY);
+  ECourse = ( SEERS, FALLY, DRAYNOR, VARRO, POLLNIV, ARDY );
 
-const
-  COURSE     = ARDY;
-  BREAKAFTER = 40;
-  BREAKFOR   = 8;
+  TAgilityGUI = record (TScriptForm)
+    BreakForInput, BreakAfterInput: TLabeledEdit;
+    AntibanCheckbox, BirdhouseCheckbox: TLabeledCheckBox;
+    FoodInput, CourseInput: TLabeledCombobox;
+  end;
 
-  BHRUNS     = True;
-  INTERVAL   = 0* ONE_MINUTE;
-  SEED       = 'Hammerstone seed';
-
-  EXTRA_ANTIBAN = True; (* Adds longer wait times and short breaks, "non-focused player" *)
-
-type
   TObstacle = record
     Index: Int32;
     Tile, WalkTile: TPoint;
@@ -31,16 +21,18 @@ type
   end;
 
 var
-  StartXP, CurrentXP, GainedXP, Marks,
-  WaitRand, Step, WaitTime: Int32;
+  ExtraAntiban, Birdhouses: Boolean;
+  StartXP, CurrentXP, GainedXP,
+  Marks, WaitRand, Step, WaitTime,
+  BreakFor, BreakAfter: Int32;
   Timer, ReportTimer: TStopwatch;
   Obstacles: Array of TObstacle;
   RuneArray: TRSItemArray;
   AgilityRSW: TRSWalker;
   BankObject: TRSObject;
   ReturnSpell: ERSSpell;
-  Birdhouses: Boolean;
-  Logs: ERSLogType;
+  GUI: TAgilityGUI;
+  Course: ECourse;
   Food: TRSItem;
 
 procedure PauseTimer(Task: PBreakTask);
@@ -72,6 +64,17 @@ begin
 
   if Timer.ElapsedTime() > 300000 then
     TerminateScript('No Gained XP in 5 mins, stopping!');
+end;
+
+procedure TAgilityGUI.StartScript(Sender: TObject); override;
+begin
+  ExtraAntiban := Self.AntibanCheckbox.IsChecked();
+  BirdHouses := Self.BirdhouseCheckbox.IsChecked();
+  BreakFor := Self.BreakForInput.GetText().ExtractInteger();
+  BreakAfter := Self.BreakAfterInput.GetText().ExtractInteger();
+  Food := Self.FoodInput.GetText();
+  Course := ECourse(Self.CourseInput.GetItemIndex());
+  inherited;
 end;
 
 procedure WriteDebug(Message: String);
@@ -149,14 +152,13 @@ begin
   Antiban.AddTask(ONE_MINUTE * 9, @Antiban.HoverMSPlayers, 1);
   Antiban.AddTask(ONE_MINUTE * 5, @Antiban.DoLoseFocus, 1);
   Antiban.AddTask(ONE_MINUTE * 9, @Antiban.RandomRotate, 1);
-  Antiban.AddTask(ONE_MINUTE * 9, @KeyboardRotate, 1);
   Antiban.AddTask(ONE_MINUTE * 9, @Antiban.HoverMSNPCs, 1);
   Antiban.AddTask(ONE_MINUTE * 25, @Antiban.HoverSkills, 1);
 
-  if EXTRA_ANTIBAN then
+  if ExtraAntiban then
     Antiban.AddBreak(ONE_SECOND * 100, ONE_SECOND * 15, 1, 0);
 
-  Antiban.AddBreak(BREAKAFTER * ONE_MINUTE, BREAKFOR * ONE_MINUTE, 0.3, 1);
+  Antiban.AddBreak(BreakAfter * ONE_MINUTE, BreakFor * ONE_MINUTE, 0.3, 1);
   Antiban.OnStartBreak := @PauseTimer;
   Antiban.OnFinishBreak := @ResumeTimer;
 end;
@@ -660,19 +662,7 @@ begin
   ReturnSpell := ERSSpell.CAMELOT_TELEPORT;
 end;
 
-procedure SetupFood();
-var
-  Foods: TRSItemArray := ['Trout', 'Salmon', 'Tuna', 'Lobster', 'Bass', 'Cake', 'Jug of wine'];
-  LFood: TRSItem;
-begin
-  for LFood in Foods do
-    if not Inventory.ContainsItem(LFood) then
-      Continue()
-    else
-      Food := LFood;
-end;
-
-procedure InitiateScript();
+procedure Initiate();
 begin
   if not RSClient.IsLoggedIn() then
     Login.LoginPlayer();
@@ -686,21 +676,14 @@ begin
   Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
   Options.SetZoomLevel(Random(0, 6));
 
-  Birdhouses := False;
-
-  if BHRUNS then
-    if Course = POLLNIV then
-      WriteDebug('Birdhouse runs are not supported for Pollnivneach.')
-    else
-      Birdhouses := True;
-
-  if Birdhouses then
+  if BirdHouses and (Course = POLLNIV) then
   begin
-    Logs := BirdHouseRunner.GetLogForHunterLevel(Stats.GetLevel(ERSSkill.HUNTER, False));
-    WriteLn('Logtype for birdhouses based on level: ', ToStr(Logs));
-    BirdHouseRunner.Setup(Logs, SEED, False, INTERVAL, False);
-    BirdHouseRunner.Init();
+    WriteDebug('Birdhouse runs are not supported for Pollnivneach.');
+    BirdHouses := False;
   end;
+
+  if BirdHouses then
+    BirdHouseRunner.Init();
 
   case Course of
     ARDY: SetupArdy();
@@ -711,7 +694,7 @@ begin
     POLLNIV: SetupPollniv();
   end;
 
-  if EXTRA_ANTIBAN then
+  if ExtraAntiban then
     WaitTime := 500
   else
     WaitTime := 100;
@@ -720,13 +703,12 @@ begin
 
   AgilityRSW.AdaptiveWalk := True;
 
-  if EXTRA_ANTIBAN then
+  if ExtraAntiban then
     Mouse.Speed := Random(11, 15)
   else
     Mouse.Speed := Random(20, 26);
 
   SetupAntiban();
-  SetupFood();
   Timer.Start();
   ReportTimer.Start();
 end;
@@ -944,7 +926,7 @@ begin
   WaitEx(5775, 555);
 end;
 
-procedure Agility();
+procedure Loop();
 begin
   Antiban.DoAntiban();
 
@@ -965,58 +947,61 @@ begin
   else
     NormalStep(Step);
   end;
+
+  WaitEx(WaitTime, (WaitTime - 50));
 end;
 
 function TBirdHouseInclude.OnStart() : Boolean; override;
 var
+  BankTimeout: TCountdown;
+  BankItem: TRSBankItem;
   i, j: Int32;
-  bankTimeout : TCountdown;
-  FoodBankItem, RuneBankItem: TRSBankItem;
 begin
   Writeln("Birdhouse Include OnStart");
 
   for i := 0 to High(Antiban.Tasks) do
     Antiban.Tasks[i].Countdown.Pause();
 
-  bankTimeout.Init(65000);
+  BankTimeout.Init(65000);
 
-  while not bankTimeOut.IsFinished() and not Bank.IsOpen() do
+  while not BankTimeout.IsFinished() and not Bank.IsOpen() do
   begin
     BankObject.WalkClick();
-    WaitUntil(Bank.IsOpen(), 250, 2000);
+    WaitUntil(Bank.IsOpen(), 250, 7500);
   end;
 
   if not Bank.IsOpen() then
   begin
     Self.DebugLn("Failed to get to bank");
-    Exit(false);
+    Exit(False);
   end;
 
-  if Inventory.CountEmptySlots() < 28 then
+  if Inventory.CountEmptySlots() < 20 then
   begin
     Bank.DepositAll();
-    WaitUntil(Inventory.CountEmptySlots() > 25, 150, 2000);
+    WaitUntil(Inventory.CountEmptySlots() > 20, 150, 2000);
 
     if not Self.WithdrawNextRun() then
     begin
       Self.DebugLn("Failed to get bank items");
       Bank.DepositAll();
-      Bank.Close();
-      BirdhouseRunner.IsDisabled := true;
+      Bank.Close(50);
+      BirdhouseRunner.IsDisabled := True;
       Exit(False);
     end;
 
     for j := 0 to High(RuneArray) do
     begin
-      RuneBankItem := TRSBankItem.Setup(RuneArray[j], 10, False);
-      Bank.WithdrawItem(RuneBankItem, False);
+      BankItem := TRSBankItem.Setup(RuneArray[j], 10, False);
+      Bank.WithdrawItem(BankItem, False);
       WaitEx(500, 450);
     end;
 
-    FoodBankItem := TRSBankItem.Setup(Food, 2, False);
-
     if Bank.ContainsItem(Food) then
-      Bank.WithDrawItem(FoodBankItem, False);
+    begin
+      BankItem := TRSBankItem.Setup(Food, 2, False);
+      Bank.WithDrawItem(BankItem, False);
+    end;
 
     WaitEx(325, 250);
     Bank.Close(60);
@@ -1038,12 +1023,80 @@ begin
     Antiban.Tasks[i].Countdown.Resume();
 end;
 
+procedure TAgilityGUI.Run(); override;
+var
+  Tab: TTabSheet;
 begin
-  InitiateScript();
+  Self.Setup('Agility', Point(800, 500), False);
+  Self.Start.SetOnClick(@Self.StartScript);
+  Self.AddTab('Settings');
+
+  Tab := Self.GetTab('Settings');
+
+  with Self.BreakAfterInput do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(160));
+    SetCaption('Break After:');
+    SetText('60');
+  end;
+
+  with Self.BreakForInput do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(200));
+    SetCaption('Break For:');
+    SetText('10');
+  end;
+
+  with Self.AntibanCheckbox do
+  begin
+    Create(Tab);
+    SetCaption('Extra Antiban');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(160));
+  end;
+
+  with Self.BirdhouseCheckbox do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(200));
+    SetCaption('Birdhouse runs');
+  end;
+
+  with Self.FoodInput do
+  begin
+    Create(Tab);
+    SetCaption('Food');
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(250));
+    AddItemArray(["Salmon", "Tuna", "Lobster", "Shark", "Manta ray", "Bass"]);
+    SetItemIndex(0);
+  end;
+
+  with Self.CourseInput do
+  begin
+    Create(Tab);
+    SetCaption('Course');
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(300));
+    AddItemArray(['SEERS', 'FALLY', 'DRAYNOR', 'VARRO', 'POLLNIV', 'ARDY']);
+    SetItemIndex(Ord(ECourse.SEERS));
+  end;
+
+  Self.CreateAccountManager(Tab);
+  Self.CreateBirdhouseRunSettings();
+  inherited;
+end;
+
+begin
+  GUI.Run();
+  Initiate();
+
   repeat
-    begin
-      Agility();
-      WaitEx(WaitTime, (WaitTime - 50));
-    end;
+    Loop();
   until false;
 end.
