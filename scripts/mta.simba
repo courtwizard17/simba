@@ -20,17 +20,15 @@ type
   end;
 
 const
-  Mode = GRAVEYARD;
+  Mode = ALCHEMY;
 
   BREAKAFTER = 60;
   BREAKFOR   = 6;
 
 var
-  State: EState;
   RSW: TRSWalker;
   Fruit: TRSItem;
   Items: TRSItemArray;
-  Timer, ReportTimer: TStopwatch;
   BoneSpell, EnchantSpell: ERSSpell;
   Theatres: Array [0..9] of TTheatre;
   StartXP, CurrentXP, GainedXP: Int32;
@@ -38,6 +36,7 @@ var
   AlchemyStatue, TelekineticStatue, GraveyardStatue,
   EnchantStatue, AlchemyExit, GraveyardExit, EnchantExit,
   DepositHole, AlchemyDeposit, ShapePile: TRSObject;
+  InactivityTimer, ReportTimer: TStopwatch;
 
 procedure DownloadMap(const URL, Filename: String);
 var
@@ -65,68 +64,33 @@ begin
   Result.Y := Trunc((centerY + randY) / 2);
 end;
 
-procedure PrintProgress();
-var
-  Hours: Double;
-  Total, Hourly: String;
-begin
-  if ReportTimer.ElapsedTime < 60000 then
-    Exit();
-
-  Hours := (GetTimeRunning()/3600000);
-  Total := ToStr(Round((GainedXP/1000), 0), ' k ');
-  Hourly := ToStr('(', Round((GainedXP/(Hours*1000)), 1), ' k / hr)');
-  WriteLn(SRL.TimeStamp(), ':[Experience]: ', Total, Hourly);
-
-  ReportTimer.Reset();
-end;
-
-procedure TakeScreenshot();
-var
-  i: Int32;
-begin
-  CreateDirectory('Crashes/');
-  i := Length(GetFiles('Crashes', 'png'));
-  SaveScreenshot('Crashes/MTA_' + IntToStr(i) + '.png');
-end;
-
-procedure CalculateXP();
+function HasGainedXP(): Boolean;
 var
   TempValue: Int32;
 begin
   CurrentXP := XPBar.Read();
   TempValue := GainedXP;
   GainedXP  := (CurrentXP - StartXP);
-
-  if GainedXP > TempValue then
-    Timer.Reset();
-
-  if Timer.ElapsedTime > 300000 then
-  begin
-    TakeScreenshot();
-    TerminateScript(ToStr('No Gained XP in 5 mins, stopping! Last state:', State));
-  end;
+  Result := (GainedXP > TempValue);
 end;
 
-procedure KeyboardRotate();
+procedure PrintProgress();
 var
-  a: Integer;
+  Hours: Double;
+  Total, Hourly: String;
 begin
-  if SRL.Dice(50) then
-    a := $25
-  else
-    a := $27;
-
-  Keyboard.KeyDown(a);
-  Sleep(SRL.NormalRange(250, 1550));
-  Keyboard.KeyUp(a);
+  Hours := (GetTimeRunning()/3600000);
+  Total := ToStr(Round((GainedXP/1000), 0), ' k ');
+  Hourly := ToStr('(', Round((GainedXP/(Hours*1000)), 1), ' k / hr)');
+  WriteLn(SRL.TimeStamp(), ':[Experience]: ', Total, Hourly);
+  ReportTimer.Reset();
 end;
 
 procedure PauseTimer(Task: PBreakTask);
 var
   t: PBreakTask;
 begin
-  Timer.Pause();
+  InactivityTimer.Pause();
   t := Task;
 end;
 
@@ -134,7 +98,7 @@ procedure ResumeTimer(Task: PBreakTask);
 var
   t: PBreakTask;
 begin
-  Timer.Resume();
+  InactivityTimer.Resume();
   t := Task;
 end;
 
@@ -150,7 +114,6 @@ begin
   Antiban.AddTask(ONE_MINUTE * 10, @Antiban.HoverMSPlayers, 1);
   Antiban.AddTask(ONE_MINUTE * 10, @Antiban.DoLoseFocus, 1);
   Antiban.AddTask(ONE_MINUTE * 6,  @Antiban.RandomRotate, 1);
-  Antiban.AddTask(ONE_MINUTE * 10, @KeyboardRotate, 1);
   Antiban.AddTask(ONE_MINUTE * 8,  @Antiban.HoverMSNPCs, 1);
   Antiban.AddTask(ONE_MINUTE * 25, @Antiban.HoverSkills, 1);
   Antiban.AddBreak(BREAKAFTER * ONE_MINUTE, BREAKFOR * ONE_MINUTE, 0.3, 1);
@@ -489,7 +452,7 @@ begin
       if RSW.AtTile(Dest[1]) then
         Exit();
     end;
-    KeyboardRotate();
+    Antiban.RandomRotate();
   end;
 end;
 
@@ -532,7 +495,7 @@ begin
   WriteDebug(ToStr('Chose enchant spell: ', EnchantSpell));
 end;
 
-procedure InitiateScript();
+procedure Initiate();
 begin
   WriteDebug(ToStr('Starting script in ', Mode, ' Mode.'));
 
@@ -565,7 +528,7 @@ begin
   SetupAntiban();
   SetupObjects();
 
-  Timer.Start();
+  InactivityTimer.Start();
   ReportTimer.Start();
 end;
 
@@ -604,9 +567,10 @@ begin
 end;
 
 procedure WaitGuardian();
-var f: TPoint;
+var
+  F: TPoint;
 begin
-  WaitUntil(FindMazePoint(f), 250, 2775);
+  WaitUntil(FindMazePoint(F), 250, 2775);
 end;
 
 function FindGuardian(FinalStep: Boolean = False): Boolean;
@@ -670,7 +634,7 @@ begin
       XPBar.WaitXP();
       Exit();
     end;
-    KeyboardRotate();
+    Antiban.RandomRotate();
   end;
   WriteDebug('Failed to grab Guardian!');
 end;
@@ -749,7 +713,7 @@ begin
     Mouse.Click(MOUSE_LEFT);
     WaitUntil(not Inventory.ContainsAny(['Banana', 'Peach']), 250, 4567);
   end else
-    KeyboardRotate();
+    Antiban.RandomRotate();
 end;
 
 function CountBones(): Int32;
@@ -786,7 +750,7 @@ begin
     Mouse.Click(MOUSE_LEFT);
     WaitUntil(Bones < CountBones(), 250, 4567);
   end else
-    KeyboardRotate();
+    Antiban.RandomRotate();
 end;
 
 function CountEmpties(): Int32;
@@ -828,7 +792,7 @@ end;
 
 procedure DepositOrbs();
 begin
-  RSW.WalkBlind([DepositHole.Coordinates[0].X, DepositHole.Coordinates[0].Y+4]);
+  RSW.WalkBlind([DepositHole.Coordinates[0].X, DepositHole.Coordinates[0].Y + 4]);
   DepositHole.Click();
   WaitUntil(not Inventory.ContainsItem('Orb'), 250, 35250);
 end;
@@ -836,6 +800,7 @@ end;
 function WaitEnchant(Dragonstones: Boolean = False): Boolean;
 begin
   Antiban.DoAntiban(False, False);
+
   if Dragonstones then
     Result := Inventory.ContainsItem('Dragonstone')
   else
@@ -1064,15 +1029,21 @@ begin
     GatherAlches();
 end;
 
-procedure MTA();
+procedure Loop();
+var
+  State: EState;
 begin
   Antiban.DoAntiban();
 
   if not RSClient.IsLoggedIn() then
     Login.LoginPlayer();
 
-  CalculateXP();
-  PrintProgress();
+  if HasGainedXP() then
+    InactivityTimer.Reset();
+
+  if ReportTimer.ElapsedTime() > 120000 then
+    PrintProgress();
+
   State := GetState();
 
   case State of
@@ -1097,8 +1068,9 @@ begin
 end;
 
 begin
-  InitiateScript();
+  Initiate();
+
   repeat
-    MTA();
+    Loop();
   until False;
 end.
