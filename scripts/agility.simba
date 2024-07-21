@@ -1038,7 +1038,7 @@ begin
     Create(Tab);
     SetLeft(TControl.AdjustToDPI(30));
     SetTop(TControl.AdjustToDPI(160));
-    SetCaption('Break After:');
+    SetCaption('Break after:');
     SetText('60');
   end;
 
@@ -1046,33 +1046,34 @@ begin
   begin
     Create(Tab);
     SetLeft(TControl.AdjustToDPI(30));
-    SetTop(TControl.AdjustToDPI(200));
-    SetCaption('Break For:');
+    SetTop(TControl.AdjustToDPI(220));
+    SetCaption('Break for:');
     SetText('10');
   end;
 
   with Self.AntibanCheckbox do
   begin
     Create(Tab);
-    SetCaption('Extra Antiban');
-    SetLeft(TControl.AdjustToDPI(380));
-    SetTop(TControl.AdjustToDPI(160));
+    SetCaption('Extra antiban:');
+    SetTooltip('Mimics an unfocused player by increased reactions and short breaks.');
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(270));
   end;
 
   with Self.BirdhouseCheckbox do
   begin
     Create(Tab);
     SetLeft(TControl.AdjustToDPI(380));
-    SetTop(TControl.AdjustToDPI(200));
-    SetCaption('Birdhouse runs');
+    SetTop(TControl.AdjustToDPI(270));
+    SetCaption('Birdhouse runs:');
   end;
 
   with Self.FoodInput do
   begin
     Create(Tab);
-    SetCaption('Food');
-    SetLeft(TControl.AdjustToDPI(30));
-    SetTop(TControl.AdjustToDPI(250));
+    SetCaption('Food:');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(220));
     AddItemArray(["Salmon", "Tuna", "Lobster", "Shark", "Manta ray", "Bass"]);
     SetItemIndex(0);
   end;
@@ -1080,9 +1081,9 @@ begin
   with Self.CourseInput do
   begin
     Create(Tab);
-    SetCaption('Course');
-    SetLeft(TControl.AdjustToDPI(30));
-    SetTop(TControl.AdjustToDPI(300));
+    SetCaption('Course:');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(160));
     AddItemArray(['SEERS', 'FALLY', 'DRAYNOR', 'VARRO', 'POLLNIV', 'ARDY']);
     SetItemIndex(Ord(ECourse.SEERS));
   end;
