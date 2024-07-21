@@ -6,11 +6,7 @@ begin
   ItemFinder.Similarity := 0.999999;
 end;
 
-type
-  COOKLOCATION = ( TRAWLER, HOSIDIUS );
-
 var
-  Location: COOKLOCATION := COOKLOCATION.TRAWLER;
   RawFoods: TRSItemArray := [ 'Raw anchovies', 'Raw shrimps', 'Raw trout', 'Raw salmon', 'Raw tuna',
                               'Raw lobster', 'Raw bass', 'Raw swordfish', 'Raw monkfish', 'Raw shark',
                               'Raw sea turtle', 'Raw manta ray', 'Raw karambwan' ];
@@ -21,18 +17,18 @@ var
 
 procedure PauseTimer(Task: PBreakTask);
 var
-  t: PBreakTask;
+  T: PBreakTask;
 begin
   Timer.Pause();
-  t := Task;
+  T := Task;
 end;
 
 procedure ResumeTimer(Task: PBreakTask);
 var
-  t: PBreakTask;
+  T: PBreakTask;
 begin
   Timer.Resume();
-  t := Task;
+  T := Task;
 end;
 
 function Fantiban(): Boolean;
@@ -43,34 +39,34 @@ end;
 
 procedure CalculateXP();
 var
-  t: Int32;
+  T: Int32;
 begin
   CurrentXP := XPBar.Read();
-  t         := GainedXP;
+  T         := GainedXP;
   GainedXP  := (CurrentXP - StartXP);
 
-  if GainedXP > t then
+  if GainedXP > T then
     Timer.Reset();
 
-  if Timer.ElapsedTime > 300000 then
+  if Timer.ElapsedTime() > 300000 then
     TerminateScript('No Gained XP in 5 minutes!');
 end;
 
 procedure PrintProgress();
 var
-  hrs: Double;
-  s1, s3: String;
+  Hours: Double;
+  Total, Hourly: String;
 begin
-  hrs := (GetTimeRunning()/3600000);
-  s1 := ToStr(Round((GainedXP/1000), 0), ' k ');
-  s3 := ToStr('(', Round((GainedXP/(hrs*1000)), 1), ' k / hr)');
-  WriteLn(SRL.TimeStamp(), ':[Experience]: ', s1, s3);
+  Hours := (GetTimeRunning()/3600000);
+  Total := ToStr(Round((GainedXP/1000), 0), ' k ');
+  Hourly := ToStr('(', Round((GainedXP/(Hours*1000)), 1), ' k / hr)');
+  WriteLn(SRL.TimeStamp(), ':[Experience]: ', Total, Hourly);
   ReportTimer.Reset();
 end;
 
 procedure TAntiban.DoLoseFocus();
 begin
-  Self.LoseFocus(SRL.NormalRange(800,3500));
+  Self.LoseFocus(SRL.NormalRange(1250, 2500));
 end;
 
 procedure KeyboardRotate();
@@ -91,18 +87,20 @@ end;
 procedure SetupAntiban();
 begin
   Antiban.Skills := [ERSSKILL.COOKING, ERSSKILL.TOTAL];
-  Antiban.AddTask(ONE_MINUTE*2,   @Mouse.RandomMovement);
-  Antiban.AddTask(ONE_MINUTE*5,   @Antiban.HoverMSPlayers);
-  Antiban.AddTask(ONE_MINUTE*3,   @Antiban.DoLoseFocus);
-  Antiban.AddTask(ONE_MINUTE*7,   @KeyboardRotate);
-  Antiban.AddTask(ONE_MINUTE*8,   @Antiban.HoverMSNPCs);
-  Antiban.AddTask(ONE_MINUTE*25,  @Antiban.HoverSkills);
-  Antiban.AddBreak(77 * ONE_MINUTE, 8 * ONE_MINUTE, 0.3, 1);
+  Antiban.AddTask(ONE_MINUTE*2, @Mouse.RandomMovement);
+  Antiban.AddTask(ONE_MINUTE*5, @Antiban.HoverMSPlayers);
+  Antiban.AddTask(ONE_MINUTE*3, @Antiban.DoLoseFocus);
+  Antiban.AddTask(ONE_MINUTE*7, @KeyboardRotate);
+  Antiban.AddTask(ONE_MINUTE*8, @Antiban.HoverMSNPCs);
+  Antiban.AddTask(ONE_MINUTE*25, @Antiban.HoverSkills);
+  Antiban.AddBreak(60 * ONE_MINUTE, 6 * ONE_MINUTE, 0.4, 1);
   Antiban.OnStartBreak := @PauseTimer;
   Antiban.OnFinishBreak := @ResumeTimer;
 end;
 
 procedure InitiateScript();
+var
+  Pos: TPoint;
 begin
   if not RSClient.IsLoggedIn() then
     Login.LoginPlayer();
@@ -118,7 +116,9 @@ begin
   RSW.Setup();
   SetupAntiban();
 
-  if Location = COOKLOCATION.TRAWLER then
+  Pos := RSW.GetMyPos();
+
+  if Pos.InBox([5858, 3658, 6239, 3952]) then
   begin
     BankObj.SetupUpText(['chest']);
     BankObj.Setup(2, [[6036, 3796]]);
@@ -127,7 +127,7 @@ begin
     OvenObj.Setup(2, [[6040, 3828]]);
     OvenObj.Finder.Colors += CTS2(4634072, 8, 0.10, 2.12);
   end
-  else if Location = COOKLOCATION.HOSIDIUS then
+  else if Pos.InBox([2050, 1953, 2168, 2039]) then
   begin
     BankObj.SetupUpText(['chest']);
     BankObj.Setup(2, [[2092, 2000]]);
@@ -181,9 +181,9 @@ begin
 
     BankItem := [RawFoods[i], Bank.QUANTITY_ALL, False];
     Bank.WithdrawItem(BankItem, False);
-    WaitEx(250, 25);
-    Bank.Close(20);
-    WaitEx(250, 25);
+    WaitEx(250, 125);
+    Bank.Close(50);
+    WaitEx(250, 125);
   end else if SRL.Dice(50) then
     Antiban.RandomRotate()
   else
@@ -206,7 +206,7 @@ begin
       else
         Restock();
 
-      if ReportTimer.ElapsedTime > 60000 then
+      if ReportTimer.ElapsedTime() > 60000 then
         PrintProgress();
 
       WaitEx(225, 200);
