@@ -1,10 +1,6 @@
 program mta;
 {$I WaspLib/osr.simba}
 
-begin
-  Login.PlayerIndex := 0;
-end;
-
 type
   EAzimuth = (N, E, S, W);
   EMode    = (TELEKINETIC, ALCHEMY, ENCHANT, GRAVEYARD);
@@ -19,19 +15,21 @@ type
     Steps: Array of EAzimuth;
   end;
 
-const
-  Mode = ALCHEMY;
-
-  BREAKAFTER = 60;
-  BREAKFOR   = 6;
+  TMTAGUI = record (TScriptForm)
+    ModeInput: TLabeledCombobox;
+    BreakForInput, BreakAfterInput: TLabeledEdit;
+  end;
 
 var
+  Mode: EMode;
+  GUI: TMTAGUI;
   RSW: TRSWalker;
   Fruit: TRSItem;
   Items: TRSItemArray;
+  StartXP, CurrentXP, GainedXP,
+  BreakFor, BreakAfter: Int32;
   BoneSpell, EnchantSpell: ERSSpell;
   Theatres: Array [0..9] of TTheatre;
-  StartXP, CurrentXP, GainedXP: Int32;
   AlchemyArea, LobbyArea, GraveyardArea, EnchantArea: TBox;
   AlchemyStatue, TelekineticStatue, GraveyardStatue,
   EnchantStatue, AlchemyExit, GraveyardExit, EnchantExit,
@@ -48,6 +46,56 @@ begin
   finally
     FreeHTTPClient(Client);
   end;
+end;
+
+procedure TMTAGUI.StartScript(Sender: TObject); override;
+begin
+  BreakFor := Self.BreakForInput.GetText().ExtractInteger();
+  BreakAfter := Self.BreakAfterInput.GetText().ExtractInteger();
+  Mode := EMode(Self.ModeInput.GetItemIndex());
+  inherited;
+end;
+
+procedure TMTAGUI.Run(); override;
+var
+  Tab: TTabSheet;
+begin
+  Self.Setup('MTA', Point(800, 500), False);
+  Self.Start.SetOnClick(@Self.StartScript);
+  Self.AddTab('Settings');
+
+  Tab := Self.GetTab('Settings');
+
+  with Self.BreakAfterInput do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(160));
+    SetCaption('Break after:');
+    SetText('60');
+  end;
+
+  with Self.BreakForInput do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(220));
+    SetCaption('Break for:');
+    SetText('10');
+  end;
+
+  with Self.ModeInput do
+  begin
+    Create(Tab);
+    SetCaption('Mode:');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(160));
+    AddItemArray(['TELEKINETIC', 'ALCHEMY', 'ENCHANT', 'GRAVEYARD']);
+    SetItemIndex(Ord(EMode.TELEKINETIC));
+  end;
+
+  Self.CreateAccountManager(Tab);
+  inherited;
 end;
 
 function TRectangle.RandomMean(): TPoint;
@@ -1068,6 +1116,7 @@ begin
 end;
 
 begin
+  GUI.Run();
   Initiate();
 
   repeat
