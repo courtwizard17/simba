@@ -207,6 +207,10 @@ begin
     TerminateScript('Failed to read XP, make sure XPBar is set up!');
 
   Options.SetZoomLevel(Random(4, 10));
+
+  if not Combat.GetAutoRetaliate() then
+    Combat.SetAutoRetaliate(True);
+
   Mouse.Speed := SRL.NormalRange(11, 18);
 
   SetupWalker();
@@ -252,7 +256,7 @@ var
   Pos: TPoint := RSW.GetMyPos();
   SafeTile: TPoint := [(511 + Random(-8, 8)), (Pos.Y + Random(-150, -140))];
 begin
-  WriteDebug('Resetting aggro and taking a break if needed.');
+  WriteDebug('Walking to safety.');
 
   if RSW.WalkBlind(SafeTile) then
     Antiban.DoAntiban()
