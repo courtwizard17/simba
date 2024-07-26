@@ -1,0 +1,258 @@
+program findz;
+{$I WaspLib/osr.simba}
+
+begin
+  Login.PlayerIndex := 0;
+end;
+
+const
+  BREAKAFTER  = 55;
+  BREAKFOR    = 5;
+  LAMPSKILL   = ERSLampSkill.SLAYER;
+
+type
+  EState = (
+    USE_LAMP, DEPOSIT, DROP_JUNK,
+    CLEAN_FINDS, GET_FINDS
+  );
+
+var
+  RSW: TRSWalker;
+  Timer: TStopwatch;
+  StartXP, CurrentXP, GainedXP: Int32;
+  State: EState;
+  DropArray: TRSItemArray := [ 'Broken arrow', 'Broken glass', 'Iron dagger',
+                               'Uncut jade', 'Bones', 'Bowl', 'Pot',
+                               'Bronze limbs', 'Wooden stock', 'Coal',
+                               'Tin ore', 'Copper ore', 'Mithril ore',
+                               'Big bones', 'Iron ore', 'Uncut opal' ];
+  DepositArray: TRSItemArray := [ 'Pottery', 'Jewellery', 'Old chipped vase', 'Arrowheads' ];
+
+procedure KeyboardRotate();
+var
+  Arrow: Integer;
+  Duration: Int64;
+begin
+  if SRL.Dice(50) then
+    Arrow := $25
+  else
+    Arrow := $27;
+  Duration := SRL.NormalRange(250, 2350);
+  Keyboard.KeyDown(Arrow);
+  Sleep(Duration);
+  Keyboard.KeyUp(Arrow);
+end;
+
+function Fantiban(): Boolean;
+begin
+  Antiban.DoAntiban(False, False);
+  Result := False;
+end;
+
+procedure PauseTimer(Task: PBreakTask);
+var T: PBreakTask;
+begin
+  Timer.Pause();
+  T := Task;
+end;
+
+procedure ResumeTimer(Task: PBreakTask);
+var T: PBreakTask;
+begin
+  Timer.Resume();
+  T := Task;
+end;
+
+procedure CalculateXP();
+var t: Int32;
+begin
+  if StartXP < 1 then
+    StartXP := XPBar.Read();
+  CurrentXP := XPBar.Read();
+  t         := GainedXP;
+  GainedXP  := CurrentXP - StartXP;
+  if GainedXP > t then
+    Timer.Reset();
+  if Timer.ElapsedTime > 3000000 then
+    TerminateScript('No Gained XP in 50 minutes!');
+end;
+
+procedure PrintProgress();
+begin
+  ClearDebug();
+  CalculateXP();
+  WriteLn('|-------------------------------|');
+  WriteLn('| Time running   : ', SRL.MsToTime(GetTimeRunning, Time_Short));
+  WriteLn('| Gained XP      : ', Round((GainedXP/1000), 2), ' K');
+  WriteLn('| Failsafe timer : ', SRL.MsToTime((3000000-Timer.ElapsedTime), Time_Short));
+  WriteLn('| Next break     : ', Antiban.TimeUntilBreak(Antiban.Breaks[0]));
+  WriteLn('|-------------------------------|');
+end;
+
+procedure GetUncleanedFinds();
+var
+  Pile: TPoint := [8444, 2664];
+  Rect: TRectangle;
+  Box: TBox;
+  Pt: TPoint;
+begin
+  Rect := RSW.GetTileMS(Pile);
+  Box := Rect.Bounds().Expand(-6);
+  Pt := SRL.rowp(Mouse.Position(), Box);
+  Mouse.HumanMove(Pt);
+  if not Mainscreen.IsUpText('rocks') then
+    Exit()
+  else
+  begin
+    Mouse.Click(MOUSE_LEFT);
+    WaitUntil(Inventory.IsFull(), 250, 62350);
+  end;
+end;
+
+function IsDepositInterfaceOpen(): Boolean;
+var c: String;
+begin
+  c := Chat.GetChatTitle();
+  Result := c.Contains('Finds placed');
+end;
+
+procedure UseCleaningTable();
+var
+  Pile: TPoint := [8440, 2676];
+  Rect: TRectangle;
+  Box: TBox;
+  Pt: TPoint;
+begin
+  Rect := RSW.GetTileMS(Pile);
+  Box  := Rect.Bounds();
+  Pt   := SRL.Rowp(Mouse.Position(), Box);
+  Mouse.HumanMove(Pt);
+  if not Mainscreen.IsUpText('table') then
+    Exit()
+  else
+  begin
+    Mouse.Click(MOUSE_LEFT);
+    WaitUntil(Fantiban() or not Inventory.ContainsItem('Uncleaned find'), 250, 82450);
+  end;
+end;
+
+function ClickStorageCrate(): Boolean;
+var
+  Loc: TPoint := [8456, 2680];
+  Rect: TRectangle;
+  Box: TBox;
+  Pt : TPoint;
+begin
+  Rect := RSW.GetTileMS(Loc);
+  Box := Rect.Bounds().Expand(-6);
+  Pt := SRL.Rowp(Mouse.Position(), Box);
+  Mouse.HumanMove(Pt);
+  if not Mainscreen.IsUpText('crate') then
+    Exit(False)
+  else
+  begin
+    Mouse.Click(MOUSE_LEFT);
+    WaitUntil(IsDepositInterfaceOpen(), 250, 5000);
+    Exit(True);
+  end;
+end;
+
+function ShouldDeposit(): Boolean;
+var
+  i, itemCount: Int32;
+begin
+  itemCount := 0;
+
+  for i := Low(DepositArray) to High(DepositArray) do
+    itemCount += Inventory.CountItem(DepositArray[i]);
+
+  Result := itemCount > 8;
+end;
+
+procedure SetupAntiban();
+begin
+  Antiban.Skills := [ERSSKILL.TOTAL];
+  Antiban.AddTask(ONE_MINUTE  * 4,   @Antiban.RandomRightClick);
+  Antiban.AddTask(ONE_SECOND  * 45,  @Mouse.RandomMovement);
+  Antiban.AddTask(ONE_MINUTE  * 5,   @KeyboardRotate);
+  Antiban.AddTask(ONE_MINUTE  * 15,  @Antiban.HoverSkills);
+  Antiban.AddTask(ONE_MINUTE  * 4,   @Antiban.LoseFocus);
+  Antiban.AddBreak(BREAKAFTER * ONE_MINUTE, BREAKFOR * ONE_MINUTE, 0.3, 1);
+  Antiban.OnStartBreak := @PauseTimer;
+  Antiban.OnFinishBreak := @ResumeTimer;
+end;
+
+procedure InitiateScript();
+begin
+  RSW.Setup();
+  SetupAntiban();
+
+  if not RSClient.IsLoggedIn then
+    Login.LoginPlayer();
+
+  WaitUntil(RSClient.IsLoggedIn, 100, 10000);
+  LampHandler.Setup(LAMPSKILL);
+  StartXP := XPBar.Read;
+  Timer.Start();
+end;
+
+procedure DepositItems();
+begin
+  if IsDepositInterfaceOpen() then
+  begin
+    Chat.ClickOption('Yes, place all my finds in the crate.');
+    WaitUntil(Fantiban() or not Inventory.ContainsAny(DepositArray), 250, 22000);
+  end
+  else
+    ClickStorageCrate();
+end;
+
+function GetState: EState;
+begin
+  if Inventory.ContainsItem('Antique lamp') then
+    Exit(USE_LAMP);
+
+  if ShouldDeposit then
+    Exit(DEPOSIT);
+
+  if Inventory.ContainsAny(DropArray) then
+    Exit(DROP_JUNK);
+
+  if Inventory.ContainsItem('Uncleaned find') then
+    if Inventory.IsFull() then
+      Exit(CLEAN_FINDS);
+
+  Exit(GET_FINDS);
+end;
+
+procedure UseLamp();
+begin
+  if LampHandler.Open() then
+    LampHandler.SelectLampSkill();
+end;
+
+procedure FindsLoop();
+begin
+  if not RSClient.IsLoggedIn() then
+    Login.LoginPlayer();
+  Antiban.DoAntiban();
+  State := GetState();
+  PrintProgress();
+  case State of
+    CLEAN_FINDS : UseCleaningTable();
+    USE_LAMP    : UseLamp();
+    DEPOSIT     : DepositItems();
+    DROP_JUNK   : Inventory.ShiftDrop(DropArray, DROP_PATTERN_SNAKE);
+    GET_FINDS   : GetUncleanedFinds();
+  end;
+end;
+
+begin
+  InitiateScript();
+  repeat
+    begin
+      FindsLoop();
+      WaitEx(225, 200);
+    end;
+  until false;
+end.
