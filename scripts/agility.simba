@@ -98,20 +98,6 @@ begin
   ReportTimer.Reset();
 end;
 
-procedure KeyboardRotate();
-var
-  a: Integer;
-begin
-  if SRL.Dice(50) then
-    a := $25
-  else
-    a := $27;
-
-  Keyboard.KeyDown(a);
-  Sleep(SRL.NormalRange(250, 1550));
-  Keyboard.KeyUp(a);
-end;
-
 procedure HealthManagement();
 begin
   if not RSClient.IsLoggedIn() then
@@ -884,6 +870,7 @@ procedure NormalStep(Step: Int32);
 var
   Found: Boolean;
   hp, xp: Int32;
+  Pos: TPoint;
 begin
   if not RSClient.IsLoggedIn() then
     Exit();
@@ -902,7 +889,17 @@ begin
     WaitUntil((xp < XPBar.Read()) or (hp > Minimap.GetHPLevel()), 250, 12775);
     Wait(Obstacles[Step].Wait);
   end else
-    Antiban.RandomRotate();
+  begin
+    Pos := AgilityRSW.GetMyPos();
+
+    if not Pos.InBox(Obstacles[Step].Area) then
+      Exit();
+
+    if Pos.DistanceTo(Obstacles[Step].Tile) > 32 then
+      AgilityRSW.WalkBlind(Obstacles[Step].Tile)
+    else
+      Antiban.RandomRotate();
+  end;
 end;
 
 procedure RecoverFromLost();
@@ -977,36 +974,34 @@ begin
   end;
 
   if Inventory.CountEmptySlots() < 20 then
-  begin
     Bank.DepositAll();
-    WaitUntil(Inventory.CountEmptySlots() > 20, 150, 2000);
 
-    if not Self.WithdrawNextRun() then
-    begin
-      Self.DebugLn("Failed to get bank items");
-      Bank.DepositAll();
-      Bank.Close(50);
-      BirdhouseRunner.IsDisabled := True;
-      Exit(False);
-    end;
+  WaitUntil(Inventory.CountEmptySlots() > 20, 150, 2000);
 
-    for j := 0 to High(RuneArray) do
-    begin
-      BankItem := TRSBankItem.Setup(RuneArray[j], 10, False);
-      Bank.WithdrawItem(BankItem, False);
-      WaitEx(500, 450);
-    end;
-
-    if Bank.ContainsItem(Food) then
-    begin
-      BankItem := TRSBankItem.Setup(Food, 2, False);
-      Bank.WithDrawItem(BankItem, False);
-    end;
-
-    WaitEx(325, 250);
-    Bank.Close(60);
+  if not Self.WithdrawNextRun() then
+  begin
+    Self.DebugLn("Failed to get bank items");
+    Bank.DepositAll();
+    Bank.Close(50);
+    BirdhouseRunner.IsDisabled := True;
+    Exit(False);
   end;
 
+  for j := 0 to High(RuneArray) do
+  begin
+    BankItem := TRSBankItem.Setup(RuneArray[j], 10, False);
+    Bank.WithdrawItem(BankItem, False);
+    WaitEx(500, 450);
+  end;
+
+  if Bank.ContainsItem(Food) then
+  begin
+    BankItem := TRSBankItem.Setup(Food, 2, False);
+    Bank.WithDrawItem(BankItem, False);
+  end;
+
+  WaitEx(325, 250);
+  Bank.Close(60);
   Result := True;
 end;
 
