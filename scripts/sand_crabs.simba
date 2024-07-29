@@ -16,7 +16,7 @@ type
   EState = ( RESTOCK, RESET, IDLE, HEAL, BOOST, RETURN, TERMINATE );
 
 var
-  InactivityTimer, PotionTimer, CombatTimer, ReportTimer: TStopwatch;
+  InactivityTimer, PotionTimer, ReportTimer: TStopwatch;
   BreakFor, BreakAfter, StartXP, CurrentXP, GainedXP: Int32;
   SingleSpawn, DoubleSpawn, TripleSpawn,
   QuadSpawn, UsePotions: Boolean;
@@ -265,8 +265,6 @@ begin
 end;
 
 function GetState(): EState;
-var
-  Pos: TPoint;
 begin
   if not RSClient.IsLoggedIn() then
     Exit(IDLE);
@@ -438,7 +436,6 @@ end;
 
 function IsSpotTaken(Tile: TPoint): Boolean;
 var
-  Pos: TPoint := RSW.GetMyPos();
   Dots: TPointArray;
   Area: TBox;
   i: Int32;
