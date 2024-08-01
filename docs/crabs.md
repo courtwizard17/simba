@@ -33,13 +33,16 @@ Set them up in the GUI, and have 4-dose potions and your chosen food at the top 
 
 ## Pictures:
 
-The GUI:
+### The GUI
+
 ![GUI](https://i.imgur.com/A7WRPo2.png)
 
 
-Example Bank Setup:
+### Example Bank Setup
+
 ![Bank](https://i.imgur.com/oJiy9Zq.png)
 
 
-Example Start Setup:
+### Example Start Setup
+
 ![Start](https://i.imgur.com/yArT1h3.png)
