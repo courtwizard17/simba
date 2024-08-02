@@ -10,7 +10,11 @@ Date updated at: {$revision_date}
 
 1: The quest is very short, and very easy.
 
-## Features:
+## Setup
+- Use RuneLite, and [the WaspScripts RuneLite Profile](https://discord.com/channels/795071177475227709/795611058072846336/1266086534445010964)
+- Have your client in Fixed Mode
+
+## Features
 
 ### Supports all combat levels
 
@@ -31,7 +35,7 @@ Melee, Magic and Ranged, all supported. The script will log out if you run out o
 
 Set them up in the GUI, and have 4-dose potions and your chosen food at the top of your bank.
 
-## Pictures:
+## Pictures
 
 ### The GUI
 ![GUI](https://i.imgur.com/A7WRPo2.png)
