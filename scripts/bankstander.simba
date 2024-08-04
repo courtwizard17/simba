@@ -1,6 +1,6 @@
 program bstander;
 {$I WaspLib/osr.simba}
-{$I ../Includes/BHI.simba}
+{$I ../Includes/BirdhouseInclude.simba}
 
 begin
   Login.PlayerIndex := 0;
@@ -16,7 +16,6 @@ const
 
 var
   Material: TRSItem := 'Maple logs';
-  Product: TRSItem := 'Maple longbow (u)';
   Tool: TRSItem := 'Knife';
   MenuSelection: Int32 := 2;
 
@@ -38,7 +37,7 @@ var
 begin
   CurrentXP := XPBar.Read();
   TempValue := GainedXP;
-  GainedXP  := (CurrentXP - StartXP);
+  GainedXP  := CurrentXP - StartXP;
 
   if GainedXP > TempValue then
     Timer.Reset();
@@ -63,23 +62,9 @@ begin
   ReportTimer.Reset();
 end;
 
-procedure KeyboardRotate();
-var
-  a: Integer;
-begin
-  if SRL.Dice(50) then
-    a := $25
-  else
-    a := $27;
-
-  Keyboard.KeyDown(a);
-  Sleep(SRL.NormalRange(250, 1750));
-  Keyboard.KeyUp(a);
-end;
-
 procedure PauseTimer(Task: PBreakTask);
 var
-  t: PBreakTask;
+  T: PBreakTask;
 begin
   Timer.Pause;
   T := Task;
@@ -87,7 +72,7 @@ end;
 
 procedure ResumeTimer(Task: PBreakTask);
 var
-  t: PBreakTask;
+  T: PBreakTask;
 begin
   Timer.Resume;
   T := Task;
@@ -105,21 +90,18 @@ end;
 
 procedure SetupAntiban();
 begin
-  Antiban.Skills := [ERSSKILL.FLETCHING, ERSSKILL.TOTAL];
   Antiban.AddTask(ONE_MINUTE*2, @Mouse.RandomMovement, 1);
   Antiban.AddTask(ONE_MINUTE*5, @Antiban.RandomRightClick, 1);
   Antiban.AddTask(ONE_MINUTE*6, @Antiban.HoverMSPlayers, 1);
   Antiban.AddTask(ONE_MINUTE*3, @Antiban.DoLoseFocus, 1);
   Antiban.AddTask(ONE_MINUTE*7, @Antiban.RandomRotate, 1);
-  Antiban.AddTask(ONE_MINUTE*7, @KeyboardRotate, 1);
   Antiban.AddTask(ONE_MINUTE*8, @Antiban.HoverMSNPCs, 1);
-  Antiban.AddTask(ONE_MINUTE*25, @Antiban.HoverSkills, 1);
   Antiban.AddBreak(BREAKAFTER * ONE_MINUTE, BREAKFOR * ONE_MINUTE, 0.3, 1);
   Antiban.OnStartBreak := @PauseTimer;
   Antiban.OnFinishBreak := @ResumeTimer;
 end;
 
-procedure InitiateScript();
+procedure Init();
 begin
   if not RSClient.IsLoggedIn() then
     Login.LoginPlayer();
@@ -140,7 +122,9 @@ begin
     TerminateScript('Failed to read XP, make sure XPBar is set up!');
 
   Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
-  Options.SetZoomLevel(Random(10, 16));
+
+  if not InRange(Options.GetZoomLevel(), 0, 20) then
+    Options.SetZoomLevel(Random(10, 16));
 
   RSW.Setup();
   SetupAntiban();
@@ -182,24 +166,22 @@ begin
     if BankObject.Click() then
       WaitUntil(Bank.IsOpen(), 250, 5000);
 
-  WaitEx(250, 200);
+  if not Bank.IsOpen() then
+    Exit();
 
-  if Bank.IsOpen() then
+  if not Inventory.ContainsItem(Tool) then
   begin
-    if not Inventory.ContainsItem(Tool) then
-    begin
-      Bank.DepositAll();
-      Bank.WithdrawItem(WTool, False);
-    end else
-      Bank.DepositAllBut(0, [Tool]);
+    Bank.DepositAll();
+    Bank.WithdrawItem(WTool, False);
+  end else
+    Bank.DepositAllBut(0, [Tool]);
 
-    Bank.WithdrawItem(WMaterial, False);
-    WaitEx(250, 225);
-    Bank.Close(60);
-  end;
+  Bank.WithdrawItem(WMaterial, False);
+  WaitEx(250, 225);
+  Bank.Close(60);
 end;
 
-procedure ScriptLoop();
+procedure Loop();
 begin
   Antiban.DoAntiban();
 
@@ -280,8 +262,9 @@ begin
 end;
 
 begin
-  InitiateScript();
+  Init();
+
   repeat
-    ScriptLoop();
+    Loop();
   until false;
 end.
