@@ -1,0 +1,246 @@
+program cballz;
+{$I WaspLib/osr.simba}
+
+const
+  BLOCK_INPUT = False;
+  BREAK_AFTER = 40;
+  BREAK_FOR   = 5;
+
+var
+  InactivityTimer, ReportTimer: TStopwatch;
+  StartXP, CurrentXP, GainedXP: Int32;
+  Chest, Furnace: TRSObject;
+  RSW: TRSWalker;
+
+procedure OnBreakEnd(Task: PBreakTask);
+var
+  T: PBreakTask;
+begin
+  InactivityTimer.Resume();
+  T := Task;
+end;
+
+function WaitSmelting(): Boolean;
+begin
+  Antiban.DoAntiban(False, False);
+  Sleep(100);
+  Result := not Inventory.ContainsItem('Steel bar');
+end;
+
+procedure RandomWait();
+begin
+  if SRL.Dice(10) then
+    WaitEx(4000, 3850)
+  else
+    WaitEx(1000, 850);
+end;
+
+procedure TAntiban.DoLoseFocus();
+begin
+  Self.LoseFocus(SRL.NormalRange(450, 2750));
+end;
+
+procedure WriteDebug(Message: String);
+begin
+  WriteLn(SRL.TimeStamp(), ':[Script]: ', Message);
+end;
+
+function HasGainedXP(): Boolean;
+var
+  TempValue: Int32;
+begin
+  if RSClient.IsLoggedIn() then
+    CurrentXP := XPBar.Read();
+
+  TempValue := GainedXP;
+  GainedXP  := CurrentXP - StartXP;
+  Result := GainedXP > TempValue;
+end;
+
+procedure PrintProgress();
+var
+  Hours: Double;
+  Total, Hourly: String;
+begin
+  Hours := GetTimeRunning()/3600000;
+  Total := ToStr(Round((GainedXP/1000), 0), ' k ');
+  Hourly := ToStr('(', Round((GainedXP/(Hours*1000)), 1), ' k / hr)');
+  WriteLn(SRL.TimeStamp(), ':[Experience]: ', Total, Hourly);
+  ReportTimer.Reset();
+end;
+
+procedure OnBreakStart(Task: PBreakTask);
+var
+  T: PBreakTask;
+begin
+  InactivityTimer.Pause();
+  T := Task;
+end;
+
+procedure SetupAntiban();
+begin
+  Antiban.AddTask(ONE_MINUTE * 3, @Antiban.SmallRandomMouse, 0.2);
+  Antiban.AddTask(ONE_MINUTE * 5, @Antiban.RandomRightClick, 1);
+  Antiban.AddTask(ONE_MINUTE * 5, @Antiban.DoLoseFocus, 1);
+  Antiban.AddTask(ONE_MINUTE * 7, @Antiban.RandomRotate, 1);
+  Antiban.AddBreak(BREAK_AFTER * ONE_MINUTE, BREAK_FOR * ONE_MINUTE, 0.3, 1);
+  Antiban.OnStartBreak := @OnBreakStart;
+  Antiban.OnFinishBreak := @OnBreakEnd;
+end;
+
+procedure Init();
+begin
+  if not RSClient.IsLoggedIn() then
+    Login.LoginPlayer();
+
+  WaitUntil(RSClient.IsLoggedIn(), 250, 12000);
+
+  StartXP := XPBar.Read();
+
+  if StartXP < 1 then
+    TerminateScript('Failed to read XP, make sure XPBar is set up correctly!');
+
+  if not InRange(Options.GetZoomLevel(), 0, 10) then
+    Options.SetZoomLevel(Random(0, 4));
+
+  Mouse.Speed := SRL.NormalRange(11, 18);
+
+  RSW.SetupRegions([[300, 1000, 1000, 1500]], 4);
+  SetupAntiban();
+
+  with Chest do
+  begin
+    Finder.Colors += CTS2(2897720, 6, 0.28, 0.49);
+    Setup(2, [[690, 1160]]);
+    SetupUpText(['Bank chest', 'Bank']);
+  end;
+
+  with Furnace do
+  begin
+    Finder.Colors += CTS2(14668156, 20, 0.22, 1.77);
+    Finder.Colors += CTS2(4013386, 4, 4.73, 0.30);
+    Setup(2, [[694, 1228]]);
+    SetupUpText(['Furnace', 'elt', 'canic']);
+  end;
+
+  if BLOCK_INPUT then
+  begin
+    WriteDebug('Script started with real input disabled.');
+    WLSettings.RemoteInput.BlockInput := True;
+    RSClient.RemoteInput.DisableRealInput();
+  end else
+  begin
+    WriteDebug('Script started with real input enabled.');
+    WLSettings.RemoteInput.BlockInput := False;
+    RSClient.RemoteInput.EnableRealInput();
+  end;
+
+  InactivityTimer.Start();
+  ReportTimer.Start();
+end;
+
+procedure Smelt();
+var
+  FurnaceWalkTile: TPoint := [688, 1228];
+begin
+  WriteDebug('State: SMELT');
+
+  if not RSW.AtTile(FurnaceWalkTile, 6) then
+    if SRL.Dice(10) then
+      if RSW.WalkBlind(FurnaceWalkTile) then
+        Exit();
+
+  if Furnace.Click() then
+    if not WaitUntil(Make.IsOpen(), 250, 8750) then
+      Exit();
+
+  if Make.IsOpen() then
+  begin
+    RandomWait();
+
+    if SRL.Dice(50) then
+      Make.Select(0, MAKE.QUANTITY_ALL, True)
+    else
+      Make.Select(0, MAKE.QUANTITY_ALL, False);
+
+    if WaitUntil(WaitSmelting(), 250, 79500) then
+      Exit();
+  end;
+
+  if SRL.Dice(75) then
+    RSW.WalkBlind(FurnaceWalkTile)
+  else
+    Antiban.RandomRotate();
+end;
+
+procedure Restock();
+var
+  Bar: TRSBankItem := ['Steel Bar', -1, False];
+  BankWalkTile: TPoint := [690, 1164];
+begin
+  WriteDebug('State: RESTOCK');
+
+  if not RSW.AtTile(BankWalkTile, 6) then
+    if SRL.Dice(10) then
+      if RSW.WalkBlind(BankWalkTile) then
+        Exit();
+
+  if Chest.Click() then
+    if not WaitUntil(Bank.IsOpen(), 250, 8750) then
+      Exit();
+
+  if Bank.IsOpen() then
+  begin
+    RandomWait();
+
+    if SRL.Dice(50) then
+      Bank.WithdrawItem(Bar, False)
+    else
+      Bank.WithdrawItem(Bar, True);
+
+    if not WaitUntil(Inventory.ContainsItem('Steel bar'), 250, 2575) then
+      Exit();
+
+    RandomWait();
+
+    if Bank.Close(50) then
+      Exit();
+  end;
+
+  if SRL.Dice(75) then
+    RSW.WalkBlind(BankWalkTile)
+  else
+    Antiban.RandomRotate();
+end;
+
+procedure Loop();
+begin
+  Antiban.DoAntiban();
+
+  if not RSClient.IsLoggedIn() then
+    Login.LoginPlayer();
+
+  if RSInterface.IsOpen() then
+    RSInterface.Close();
+
+  if HasGainedXP() then
+    InactivityTimer.Reset();
+
+  if ReportTimer.ElapsedTime() > 120000 then
+    PrintProgress();
+
+  if Inventory.ContainsItem('Steel bar') then
+    Smelt()
+  else
+    Restock();
+
+  WaitEx(1750, 1745);
+end;
+
+begin
+  Init();
+
+  repeat
+    Loop();
+  until False;
+end.
