@@ -2089,7 +2089,7 @@ begin
   Self.InactivityTimer.Init(6 * ONE_MINUTE);
 
   if StartWithRun then
-    Self.ReadyTimer.Init(Random(86*ONE_MINUTE, 97*ONE_MINUTE))
+    Self.ReadyTimer.Init(0)
   else
     Self.ReadyTimer.Init(Self.GetNextTime());
 
