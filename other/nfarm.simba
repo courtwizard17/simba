@@ -322,6 +322,15 @@ begin
     Self += Item;
 end;
 
+function TFarmRun.GetNextTime(): Int32;
+begin
+  if Length(Self.Patches) = 2 then
+    if ('seaweed' in Self.Patches[0].Data.Name) and ('seaweed' in Self.Patches[1].Data.Name) then
+      Exit(Random(46*ONE_MINUTE, 55*ONE_MINUTE));
+
+  Exit(Random(86*ONE_MINUTE, 97*ONE_MINUTE));
+end;
+
 function TRSInventory.Count(): Int32; override;
 var
   Slot: Int32;
@@ -2035,7 +2044,7 @@ begin
       Exit(True);
 end;
 
-procedure TFarmRun.Init();
+procedure TFarmRun.Init(StartWithRun: Boolean = False);
 var
   RSW: TRSWalker;
   Tmp: TBoxArray;
@@ -2078,7 +2087,12 @@ begin
   BargeAttendant.Finder.Colors += CTS2(1911645, 6, 0.08, 0.27);
 
   Self.InactivityTimer.Init(6 * ONE_MINUTE);
-  ReadyTimer.Init(ONE_SECOND);
+
+  if StartWithRun then
+    Self.ReadyTimer.Init(Random(86*ONE_MINUTE, 97*ONE_MINUTE))
+  else
+    Self.ReadyTimer.Init(Self.GetNextTime());
+
   SetLength(Self.HarvestQuantities, Length(LeprechaunItems));
 end;
 
@@ -2187,9 +2201,5 @@ begin
 
   Self.Run();
 
-  ReadyTimer.Init(Random(86*ONE_MINUTE, 97*ONE_MINUTE));
-
-  if Length(Self.Patches) = 2 then
-    if ('seaweed' in Self.Patches[0].Data.Name) and ('seaweed' in Self.Patches[1].Data.Name) then
-      ReadyTimer.Init(Random(46*ONE_MINUTE, 55*ONE_MINUTE));
+  ReadyTimer.Init(Self.GetNextTime());
 end;
