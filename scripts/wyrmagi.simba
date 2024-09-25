@@ -10,7 +10,7 @@ const
   BREAK_FOR     = 10;
 
   BLOCK_INPUT   = False;
-  EXTRA_ANTIBAN = False;
+  EXTRA_ANTIBAN = True;
 
 type
   TObstacle = record
@@ -297,7 +297,13 @@ begin
     Experience := XPBar.Read();
     Mouse.Click(MOUSE_LEFT);
     WaitUntil((Experience + Obstacles[0].Experience) < XPBar.Read(), 575, 22775);
-  end else
+    Wait(200);
+    Exit();
+  end;
+
+  if SRL.Dice(50) then
+    Antiban.RandomRotate()
+  else
     RSW.WalkBlind(Obstacles[0].Tile);
 end;
 
@@ -352,7 +358,7 @@ begin
   Step := GetStep();
 
   case Step of
-    -1: Wait(1000);
+    -1: Wait(2000);
      0: GroundStep();
   else
     NormalStep(Step);
