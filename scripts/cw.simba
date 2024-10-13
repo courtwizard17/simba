@@ -59,7 +59,7 @@ end;
 
 procedure SetAntiban();
 begin
-  Antiban.AddTask(ONE_MINUTE * 2, @Mouse.RandomMovement);
+  Antiban.AddTask(ONE_MINUTE * 2, @Antiban.RandomMouse);
   Antiban.AddTask(ONE_MINUTE * 4, @Antiban.RandomRotate);
   Antiban.AddTask(ONE_MINUTE * 3, @Antiban.DoLoseFocus);
   Antiban.AddTask(ONE_MINUTE * 8, @Antiban.HoverMSNPCs);
