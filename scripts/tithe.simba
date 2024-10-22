@@ -2,7 +2,7 @@ program tithe;
 {$I WaspLib/osr.simba}
 
 begin
-  Login.PlayerIndex := 0;
+  Login.PlayerIndex := 1;
 end;
 
 type
@@ -52,7 +52,7 @@ var
 begin
   CurrentXP := XPBar.Read();
   TempValue := GainedXP;
-  GainedXP  := (CurrentXP - StartXP);
+  GainedXP  := CurrentXP - StartXP;
 
   if GainedXP > TempValue then
     Timer.Reset();
@@ -61,34 +61,20 @@ begin
     TerminateScript('No Gained XP in 5 mins, stopping!');
 end;
 
-procedure KeyboardRotate();
-var
-  a: Integer;
-begin
-  if SRL.Dice(50) then
-    a := $25
-  else
-    a := $27;
-
-  Keyboard.KeyDown(a);
-  Sleep(SRL.NormalRange(250, 1550));
-  Keyboard.KeyUp(a);
-end;
-
 procedure PauseTimer(Task: PBreakTask);
 var
-  t: PBreakTask;
+  T: PBreakTask;
 begin
   Timer.Pause();
-  t := Task;
+  T := Task;
 end;
 
 procedure ResumeTimer(Task: PBreakTask);
 var
-  t: PBreakTask;
+  T: PBreakTask;
 begin
   Timer.Resume();
-  t := Task;
+  T := Task;
 end;
 
 procedure TAntiban.DoLoseFocus();
@@ -103,7 +89,6 @@ begin
   Antiban.AddTask(ONE_MINUTE * 10, @Antiban.HoverMSPlayers, 1);
   Antiban.AddTask(ONE_MINUTE * 10, @Antiban.DoLoseFocus, 1);
   Antiban.AddTask(ONE_MINUTE * 6,  @Antiban.RandomRotate, 1);
-  Antiban.AddTask(ONE_MINUTE * 10, @KeyboardRotate, 1);
   Antiban.AddTask(ONE_MINUTE * 8,  @Antiban.HoverMSNPCs, 1);
   Antiban.AddTask(ONE_MINUTE * 25, @Antiban.HoverSkills, 1);
   Antiban.AddBreak(BREAKAFTER * ONE_MINUTE, BREAKFOR * ONE_MINUTE, 0.3, 1);
@@ -114,7 +99,6 @@ end;
 procedure GeneratePlantArray();
 var
   x, y: Int32;
-  p: TPoint;
 begin
   x := 2637;
   for 1 to 2 do
@@ -164,12 +148,12 @@ var
 begin
   Bounds := GetTileBounds(Tile, 0, 2);
   Amount := SRL.CountColor(BlightedColor, Bounds);
-  Result := (Amount > 2);
+  Result := Amount > 2;
 end;
 
 function ShouldRefill(): Boolean;
 begin
-  Result := (UsedWater > WaterLimit);
+  Result := UsedWater > WaterLimit;
 end;
 
 function IsFree(Tile: TPoint): Boolean;
@@ -179,7 +163,7 @@ var
 begin
   Bounds := GetTileBounds(Tile, 0, 1);
   Amount := SRL.CountColor(PlantColor, Bounds);
-  Result := (Amount = 0);
+  Result := Amount = 0;
 end;
 
 function IsWatered(Tile: TPoint): Boolean;
@@ -190,7 +174,7 @@ var
 begin
   Bounds := GetTileBounds(Tile, 0, 5);
   Amount := SRL.CountColor(WaterColor, Bounds);
-  Result := (Amount > 3);
+  Result := Amount > 3;
 end;
 
 function NeedsWatering(Tile: TPoint): Boolean;
@@ -303,6 +287,7 @@ begin
   begin
     WateringCan := 'Gricoller' + #39 + 's can';
     WaterLimit := 3 * WaterLimit;
+    WriteDebug('Starting with gricollers');
   end else
     WateringCan := 'Watering can';
 
@@ -356,8 +341,6 @@ end;
 
 procedure HarvestPlant();
 var
-  Pos: TPoint := RSW.GetMyPos();
-  SortedPlants: TPointArray;
   Bounds: TBox;
   Fruits: Int32;
 begin
@@ -387,7 +370,6 @@ end;
 procedure Fertilise(Tile: TPoint);
 var
   Bucket: TRSItem := 'Gricoller' + #39 + 's fertiliser';
-  Fruits: Int32;
   Bounds: TBox;
 begin
   if Mainscreen.IsUpText('>') then
