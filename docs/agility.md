@@ -37,6 +37,7 @@ Currently supported patches:
 
 In-game setup:
 - You need to have unlocked the auto-weed from Tithe Farm minigame
+- All of the patches need to be pre-raked or pre-planted
 - You need to be on the normal spellbook
 - You need to have your POH in Hosidius, if using the Hosidius patch
 
