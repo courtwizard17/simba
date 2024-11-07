@@ -1,0 +1,632 @@
+program woodcutter;
+{$I WaspLib/osr.simba}
+{$IFHASFILE Includes/chores.simba}
+  {$I chores.simba}
+{$ELSE}
+  begin
+    WriteLn('Chore include not found, downloading it now.');
+    DownloadToFile('https://raw.githubusercontent.com/courtwizard17/simba/refs/heads/main/chores.simba', 'Includes/chores.simba');
+    TerminateScript('Chore include downloaded, restart the script.');
+  end;
+{$ENDIF}
+
+type
+  ETreeType = (OAK_TREE, WILLOW_TREE, MAPLE_TREE, YEW_TREE, MAGIC_TREE);
+  EState = (PRINT_PROGRESS, TRAVEL_BANK, TRAVEL_ZONE, DEPOSIT_LOGS, BIRDHOUSE_RUN, RESET_TIMER,
+            CLOSE_INTERFACE, HANDLE_LOGIN, RETURN_SEERS, TERMINATE_SCRIPT, DO_ANTIBAN, CHOP);
+
+  TWoodcutter = record
+    Trees: Array of TRSObjectV2;
+    ChoppingTime: Int32;
+    Booth: TRSObjectV2;
+    Zone, Bank: TBox;
+    Log: TRSItem;
+  end;
+
+  TWoodcutterGUI = record (TScriptForm)
+    BlockInputCheckbox, BirdhouseCheckbox: TLabeledCheckBox;
+    BreakForInput, BreakAfterInput: TLabeledEdit;
+    TreeTypeInput: TLabeledCombobox;
+  end;
+
+var
+  BreakFor, BreakAfter, StartXP, CurrentXP, GainedXP, LogsBanked: Int32;
+  InactivityTimer, ReportTimer: TStopwatch;
+  BlockInput, DoBirdhouseRuns: Boolean;
+  GUI: TWoodcutterGUI;
+  Bot: TWoodcutter;
+  Tree: ETreeType;
+
+procedure WriteDebug(Message: String);
+begin
+  WriteLn(SRL.TimeStamp(), ':[Script]: ', Message);
+end;
+
+procedure TWoodcutterGUI.StartScript(Sender: TObject); override;
+begin
+  DoBirdhouseRuns := Self.BirdhouseCheckbox.IsChecked();
+  BreakFor := Self.BreakForInput.GetText().ExtractInteger();
+  BlockInput := Self.BlockInputCheckbox.IsChecked();
+  BreakAfter := Self.BreakAfterInput.GetText().ExtractInteger();
+  Tree := ETreeType(Self.TreeTypeInput.GetItemIndex());
+  inherited;
+end;
+
+procedure TWoodcutterGUI.Run(); override;
+var
+  Tab: TTabSheet;
+begin
+  Self.Setup('Woodcutter', Point(800, 500), False);
+  Self.Start.SetOnClick(@Self.StartScript);
+  Self.AddTab('Settings');
+
+  Tab := Self.GetTab('Settings');
+  Tab.SetTooltip('');
+
+  with Self.BreakAfterInput do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(160));
+    SetCaption('Break after:');
+    SetText('45');
+  end;
+
+  with Self.BlockInputCheckbox do
+  begin
+    Create(Tab);
+    SetCaption('Block Real Input?');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(260));
+  end;
+
+  with Self.BreakForInput do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(220));
+    SetCaption('Break for:');
+    SetText('5');
+  end;
+
+  with Self.BirdhouseCheckbox do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(235));
+    SetCaption('Do birdhouse runs?');
+  end;
+
+  with Self.TreeTypeInput do
+  begin
+    Create(Tab);
+    SetCaption('Logs:');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(160));
+    AddItemArray(['Oak', 'Willow', 'Maple', 'Yew', 'Magic']);
+  end;
+
+  Self.CreateAccountManager(Tab);
+  {$IFHASFILE Includes/chores.simba}
+    Self.CreateBirdhouseRunSettings();
+  {$ENDIF}
+  inherited;
+end;
+
+procedure PauseTimer(Task: PBreakTask);
+var
+  T: PBreakTask;
+begin
+  InactivityTimer.Pause();
+  T := Task;
+end;
+
+procedure ResumeTimer(Task: PBreakTask);
+var
+  T: PBreakTask;
+begin
+  InactivityTimer.Resume();
+  T := Task;
+end;
+
+procedure TAntiban.DoLoseFocus();
+begin
+  Self.LoseFocus(SRL.NormalRange(450, 2750));
+end;
+
+procedure SetupAntiban();
+begin
+  Antiban.AddTask(ONE_MINUTE * 3, @Antiban.RandomMouse, 1);
+  Antiban.AddTask(ONE_MINUTE * 5, @Antiban.RandomRightClick, 1);
+  Antiban.AddTask(ONE_MINUTE * 5, @Antiban.DoLoseFocus, 1);
+  Antiban.AddTask(ONE_MINUTE * 7, @Antiban.RandomRotate, 1);
+
+  Antiban.AddBreak(BreakAfter * ONE_MINUTE, BreakFor * ONE_MINUTE, 0.3, 1);
+
+  Antiban.OnStartBreak := @PauseTimer;
+  Antiban.OnFinishBreak := @ResumeTimer;
+end;
+
+function HasGainedXP(): Boolean;
+var
+  TempValue: Int32;
+begin
+  if not RSClient.IsLoggedIn() then
+    Exit(False);
+
+  CurrentXP := XPBar.Read();
+
+  if CurrentXP < 1024 then
+    Exit(False);
+
+  TempValue := GainedXP;
+  GainedXP  := CurrentXP - StartXP;
+
+  Result := GainedXP > TempValue;
+end;
+
+function IsAnimating(): Boolean;
+var
+  Timer: TCountdown;
+begin
+  Timer.Init(SRL.NormalRange(1850, 2550));
+
+  while not Timer.IsFinished() do
+    if SRL.PercentShift(MainScreen.GetPlayerBox(), 325) > 10 then
+      Exit(True);
+
+  WriteDebug('Stopped animating.');
+end;
+
+function Fantiban(): Boolean;
+begin
+  Antiban.DoAntiban(False, False);
+  Result := (not IsAnimating() or Inventory.IsFull());
+end;
+
+procedure WaitChopping();
+var
+  RandomizedWaitTime: Int32;
+begin
+  RandomizedWaitTime := Floor(SRL.SkewedRand(Bot.ChoppingTime, Bot.ChoppingTime*0.7, Bot.ChoppingTime*1.3));
+  WaitUntil(Fantiban(), 1250, RandomizedWaitTime);
+end;
+
+procedure PrintProgress();
+var
+  Hours: Double;
+  Total, Hourly: String;
+begin
+  Hours := GetTimeRunning() / 3600000;
+  Total := ToStr(Round((GainedXP/1000), 0), ' k ');
+  Hourly := ToStr('(', Round((GainedXP/(Hours*1000)), 1), ' k / hr)');
+
+  WriteLn(SRL.TimeStamp(), ':[Experience]: ', Total, Hourly);
+
+  ReportTimer.Reset();
+end;
+
+procedure SetupCatherbyBank();
+begin
+  Bot.Bank := [7128, 36666, 7152, 36678];
+
+  with Bot.Booth do
+  begin
+    Size := Vec3(1, 1, 8);
+    SetupCoordinates([[7140, 36662]]);
+    Finder.Colors += CTS2(4214674, 18, 0.55, 2.07);
+    SetupUpText('ooth');
+    Rotations := [0];
+    Walker := @Map.Walker;
+  end;
+end;
+
+procedure SetupSeersBank();
+begin
+  Bot.Bank := [6788, 36458, 6824, 36474];
+
+  with Bot.Booth do
+  begin
+    Size := Vec3(1, 1, 8);
+    SetupCoordinates([[6800, 36454]]);
+    Finder.Colors += CTS2(4214674, 18, 0.55, 2.07);
+    SetupUpText('ooth');
+    Rotations := [0];
+    Walker := @Map.Walker;
+  end;
+end;
+
+procedure SetupYews();
+var
+  Yews: TPointArray := [[6944, 36718], [6948, 36702], [6936, 36694], [6928, 36706], [6968, 36718]];
+  i: Int32;
+begin
+  Bot.Zone := [6912, 36686, 6964, 36730];
+  Bot.ChoppingTime := 95000;
+  Bot.Log := 'Yew logs';
+
+  SetupCatherbyBank();
+  SetLength(Bot.Trees, Length(Yews));
+
+  for i := 0 to Length(Bot.Trees) - 1 do
+    with Bot.Trees[i] do
+    begin
+      Size := Vec3(2.5, 2.5, 8);
+      SetupCoordinates([Yews[i]]);
+      Finder.ColorClusters += [CTS2(1919809, 4, 0.52, 1.79), CTS2(1730145, 15, 0.08, 2.88), 3];
+      SetupUpText('Yew');
+      Rotations := [0];
+      Walker := @Map.Walker;
+    end;
+end;
+
+procedure SetupWillows();
+var
+  Willows: TPointArray := [[6742, 36388], [6754, 36396], [6750, 36384]];
+  i: Int32;
+begin
+  Bot.Zone := Box([6748, 36390], 25, 25);
+  Bot.ChoppingTime := 45000;
+  Bot.Log := 'Willow logs';
+
+  SetupSeersBank();
+  SetLength(Bot.Trees, Length(Willows));
+
+  for i := 0 to Length(Bot.Trees) - 1 do
+    with Bot.Trees[i] do
+    begin
+      Size := Vec3(2, 2, 6);
+      SetupCoordinates([Willows[i]]);
+      Finder.ColorClusters += [CTS2(1794645, 6, 0.13, 1.49), CTS2(2904399, 17, 0.06, 0.90), 4];
+      SetupUpText('Willow');
+      Rotations := [0];
+      Walker := @Map.Walker;
+    end;
+end;
+
+procedure SetupOaks();
+var
+  Oaks: TPointArray := [[6784, 36502], [6788, 36514]];
+  i: Int32;
+begin
+  Bot.Zone := Box([6780, 36510], 15, 15);
+  Bot.ChoppingTime := 35000;
+  Bot.Log := 'Oak logs';
+
+  SetupSeersBank();
+  SetLength(Bot.Trees, Length(Oaks));
+
+  for i := 0 to Length(Bot.Trees) - 1 do
+    with Bot.Trees[i] do
+    begin
+      Size := Vec3(2, 2, 6);
+      SetupCoordinates([Oaks[i]]);
+      Finder.ColorClusters += [CTS2(1794645, 6, 0.13, 1.49), CTS2(2904399, 17, 0.06, 0.90), 4];
+      SetupUpText('Oak');
+      Rotations := [0];
+      Walker := @Map.Walker;
+    end;
+end;
+
+procedure SetupMagics();
+var
+  Magics: TPointArray := [[6700, 36838], [6728, 36838], [6700, 36846], [6728, 36846]];
+  i: Int32;
+begin
+  Bot.Zone := [6700, 36826, 6736, 36846];
+  Bot.ChoppingTime := 95000;
+  Bot.Log := 'Magic logs';
+
+  SetupCatherbyBank();
+  SetLength(Bot.Trees, Length(Magics));
+
+  for i := 0 to Length(Bot.Trees) - 1 do
+    with Bot.Trees[i] do
+    begin
+      Size := Vec3(2, 2, 8);
+      SetupCoordinates([Magics[i]]);
+      Finder.ColorClusters += [CTS2(3695708, 4, 0.27, 2.85), CTS2(8639705, 22, 0.01, 1.73), 4];
+      SetupUpText('Magic');
+      Rotations := [0];
+      Walker := @Map.Walker;
+    end;
+end;
+
+procedure SetupMaples();
+var
+  Maples: TPointArray := [[6790, 36424], [6814, 36424], [6826, 36424], [6834, 36432]];
+  i: Int32;
+begin
+  Bot.Zone := [6780, 36414, 6840, 36438];
+  Bot.ChoppingTime := 45000;
+  Bot.Log := 'Maple logs';
+
+  SetupSeersBank();
+  SetLength(Bot.Trees, Length(Maples));
+
+  for i := 0 to Length(Bot.Trees) - 1 do
+    with Bot.Trees[i] do
+    begin
+      Size := Vec3(1.6, 1.6, 5);
+      SetupCoordinates([Maples[i]]);
+      Finder.ColorClusters += [CTS2(13908, 7, 0.37, 0.01), CTS2(23438, 3, 0.74, 0.01), 4];
+      SetupUpText('Maple');
+      Rotations := [0];
+      Walker := @Map.Walker;
+    end;
+end;
+
+procedure SetupTrees();
+begin
+  case Tree of
+    YEW_TREE: SetupYews();
+    OAK_TREE: SetupOaks();
+    MAPLE_TREE: SetupMaples();
+    MAGIC_TREE: SetupMagics();
+    WILLOW_TREE: SetupWillows();
+  end;
+end;
+
+procedure Init();
+begin
+  if FileExists(AppPath + '\Includes\chores.simba') then
+  begin
+    DeleteFile(AppPath + '\Includes\chores.simba');
+    WriteLn('Updating chore include');
+    DownloadToFile('https://raw.githubusercontent.com/courtwizard17/simba/refs/heads/main/chores.simba', 'Includes/chores.simba');
+  end;
+
+  if not RSClient.IsLoggedIn() then
+    Login.LoginPlayer();
+
+  if WaitUntil(RSClient.IsLoggedIn(), 250, 12000)  then
+    StartXP := XPBar.Read();
+
+  if StartXP < 1024 then
+    TerminateScript('Failed to read XP, make sure XPBar is set up!');
+
+  {$IFHASFILE Includes/chores.simba}
+    if DoBirdhouseRuns then
+      BirdHouseRunner.Init();
+  {$ENDIF}
+
+  if Options.GetNPCAttackOption() <> ERSAttackOption.HIDDEN then
+    Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
+
+  if not InRange(Options.GetZoomLevel(), 12, 18) then
+    Options.SetZoomLevel(Random(12, 18));
+
+  Mouse.Speed := SRL.NormalRange(25, 35);
+  Map.SetupChunks([[[41, 55, 45, 52], [0]], [[56, 61, 60, 57], [0]]]);
+  MM2MS.SetupZoom();
+  SetupAntiban();
+
+  if BlockInput then
+  begin
+    WriteDebug('Script started with real input disabled.');
+    WLSettings.RemoteInput.BlockInput := True;
+    RSClient.RemoteInput.DisableRealInput();
+  end else
+  begin
+    WriteDebug('Script started with real input enabled.');
+    WLSettings.RemoteInput.BlockInput := False;
+    RSClient.RemoteInput.EnableRealInput();
+  end;
+
+  SetupTrees();
+
+  InactivityTimer.Start();
+  ReportTimer.Start();
+end;
+
+procedure ReturnSeers();
+var
+  i: Int32;
+begin
+  for i:= 0 to 5 do
+  begin
+    if Magic.CastSpell(ERSSpell.CAMELOT_TELEPORT) then
+    begin
+      Wait(5000);
+      Break();
+    end else
+      WriteDebug('Failed to cast return teleport!');
+  end;
+end;
+
+function TAntiban.TaskWaiting(): Boolean;
+var
+  i: Int32;
+begin
+  for i := 0 to High(Self.Tasks) do
+    if Self.Tasks[i].Countdown.IsFinished() then
+      Exit(True);
+end;
+
+function GetState(): EState;
+begin
+  if not RSClient.IsLoggedIn() then
+    Exit(HANDLE_LOGIN);
+
+  if RSInterface.IsOpen() then
+    Exit(CLOSE_INTERFACE);
+
+  if HasGainedXP() then
+    Exit(RESET_TIMER);
+
+  if InactivityTimer.ElapsedTime() > 300000 then
+    Exit(TERMINATE_SCRIPT);
+
+  if ReportTimer.ElapsedTime() > 120000 then
+    Exit(PRINT_PROGRESS);
+
+  if Antiban.TaskWaiting() then
+    Exit(DO_ANTIBAN);
+
+  if Map.Position().InBox([10424, 34766, 11244, 35570]) then
+    Exit(RETURN_SEERS);
+
+  {$IFHASFILE Includes/chores.simba}
+    if DoBirdhouseRuns then
+      if BirdhouseRunner.CanDoBirdHouseRun() then
+        Exit(BIRDHOUSE_RUN);
+  {$ENDIF}
+
+  if Inventory.IsFull() then
+  begin
+    if Map.Position().InBox(Bot.Bank) then
+      Exit(DEPOSIT_LOGS);
+
+    Exit(TRAVEL_BANK);
+  end;
+
+  if Map.Position().InBox(Bot.Zone) then
+    Exit(CHOP);
+
+  Exit(TRAVEL_ZONE);
+end;
+
+procedure ChopTree();
+var
+  Tree: TRSObjectV2;
+begin
+  for Tree in Bot.Trees do
+  begin
+    if not Tree.IsVisible() then
+      Continue()
+    else
+      Tree.Draw(RSClient.Image());
+
+    if Tree.Click() then
+    begin
+      RSClient.Image.Clear();
+      WaitChopping();
+      Exit();
+    end else
+      Continue();
+  end;
+end;
+
+procedure DepositLogs();
+begin
+  if Bot.Booth.Click() then
+    WaitUntil(Bank.IsOpen(), 250, 15000)
+  else
+    Antiban.RandomRotate();
+
+  if not Bank.IsOpen() then
+    Exit();
+
+  LogsBanked += Inventory.CountItem(Bot.Log);
+
+  if Bank.DepositRandomItems(['Steel axe', 'Mithril axe', 'Rune axe', 'Adamant axe', 'Dragon axe']) then
+    WaitEx(1600, 1200);
+
+  if Bank.Close(50) then
+    WaitEx(1575, 1225);
+
+  WriteDebug(ToStr('Logs banked: ', LogsBanked));
+end;
+
+procedure Loop();
+var
+  State: EState;
+begin
+  State := GetState();
+
+  WriteDebug(ToStr(State));
+
+  case State of
+    {$IFHASFILE Includes/chores.simba}
+      BIRDHOUSE_RUN: BirdhouseRunner.DoBirdHouseRun();
+    {$ENDIF}
+
+    TERMINATE_SCRIPT: TerminateScript();
+    CLOSE_INTERFACE: RSInterface.Close(50);
+    PRINT_PROGRESS: PrintProgress();
+    RESET_TIMER: InactivityTimer.Reset();
+    RETURN_SEERS: ReturnSeers();
+    DO_ANTIBAN: Antiban.DoAntiban();
+    HANDLE_LOGIN: Login.LoginPlayer();
+
+    DEPOSIT_LOGS: DepositLogs();
+    TRAVEL_ZONE: Map.Walker.WebWalk(Bot.Zone.Center());
+    TRAVEL_BANK: Map.Walker.WebWalk(Bot.Bank.Center());
+    CHOP: ChopTree();
+  end;
+
+  WaitEx(175, 170);
+end;
+
+{$IFHASFILE Includes/chores.simba}
+  function TBirdHouseInclude.OnStart() : Boolean; override;
+  var
+    RuneArray: TRSItemArray := ['Law rune', 'Air rune'];
+    RuneBankItem: TRSBankItem;
+    BankTimeout: TCountdown;
+    Rune: TRSItem;
+    i: Int32;
+  begin
+    WriteDebug('Starting a birdhouse run');
+
+    for i := 0 to High(Antiban.Tasks) do
+      Antiban.Tasks[i].Countdown.Pause();
+
+    BankTimeout.Init(68750);
+
+    while not BankTimeOut.IsFinished() and not Bank.IsOpen() do
+    begin
+      if Bot.Booth.WalkClick() then
+        WaitUntil(Bank.IsOpen(), 250, 8000);
+    end;
+
+    if not Bank.IsOpen() then
+      Exit(False);
+
+    if Inventory.CountEmptySlots() < 28 then
+      Bank.DepositAll();
+
+    WaitUntil(Inventory.CountEmptySlots() > 25, 150, 2000);
+
+    if not Self.WithdrawNextRun() then
+    begin
+      Self.DebugLn("Failed to get bank items");
+      Bank.DepositAll();
+      Bank.Close();
+      BirdhouseRunner.IsDisabled := True;
+      Exit(False);
+    end;
+
+    for Rune in RuneArray do
+    begin
+      RuneBankItem := TRSBankItem.Setup(Rune, 10, False);
+      Bank.WithdrawItem(RuneBankItem, False);
+      WaitEx(500, 450);
+    end;
+
+    WaitEx(325, 250);
+
+    Result := Bank.Close(50);
+  end;
+
+  procedure TBirdHouseInclude.OnComplete(); override;
+  var
+    i: Int32;
+  begin
+    WriteDebug('Completed a birdhouse run');
+
+    ReturnSeers();
+
+    for i := 0 to High(Antiban.Tasks) do
+      Antiban.Tasks[i].Countdown.Resume();
+  end;
+{$ENDIF}
+
+begin
+  GUI.Run();
+  Init();
+
+  repeat
+    Loop();
+  until False;
+end.
