@@ -24,7 +24,7 @@ type
 
 var
   BreakFor, BreakAfter, StartXP, CurrentXP, GainedXP: Int32;
-  InactivityTimer, ReportTimer: TStopwatch;
+  InactivityTimer, ReportTimer, RelogTimer: TStopwatch;
   BlockInput, DoBirdhouseRuns: Boolean;
   Objecter: TRSObjectFinder;
   Chest: TRSObject;
@@ -375,6 +375,7 @@ begin
 
   InactivityTimer.Start();
   ReportTimer.Start();
+  RelogTimer.Start();
 end;
 
 function InspectFinished(Experience: Int32; S: String): Boolean;
@@ -474,9 +475,23 @@ end;
 procedure ResetTrail();
 begin
   if InactivityTimer.ElapsedTime() < 20000 then
-    SmallRandomMove()
-  else
+  begin
+    SmallRandomMove();
+    Exit();
+  end;
+
+  if InactivityTimer.ElapsedTime() < 120000 then
+  begin
     MoveToStart();
+    Exit();
+  end else
+    Logout.ClickLogout();
+end;
+
+procedure Relog();
+begin
+  Logout.ClickLogout();
+  RelogTimer.Reset();
 end;
 
 procedure DepositLoot();
@@ -490,13 +505,13 @@ begin
   if Inventory.ContainsItem('Open herb sack') then
     Inventory.ClickItem('Open herb sack', 'Empty');
 
-  if not Bank.DepositRandomItems(['Open herb sack', 'Secateurs', 'Numulite']) then
-    Exit()
-  else
-    WaitEx(750, 725);
+  Bank.DepositRandomItems(['Open herb sack', 'Secateurs', 'Numulite']);
+  WaitEx(750, 725);
 
   if Bank.IsOpen() then
     Bank.Close(50);
+
+  InactivityTimer.Reset();
 end;
 
 function GetState(): EState;
@@ -518,9 +533,6 @@ begin
 
   if Antiban.HasTaskWaiting() then
     Exit(DO_ANTIBAN);
-
-  if InactivityTimer.ElapsedTime() > 60000 then
-    Exit(RE_LOG);
 
   if SRL.PointInPoly(RSW.GetMyPos(), [[9275, 1037], [9375, 1039], [9376, 1104], [9275, 1097]]) then
   begin
@@ -552,6 +564,11 @@ begin
     {$ENDIF}
   end;
 
+  if InactivityTimer.ElapsedTime() > 90000 then
+    if not IsObjectVisible() then
+      if RelogTimer.ElapsedTime() < 90000 then
+        Exit(RE_LOG);
+
   if IsHerbiVisible() then
     Exit(HARVEST);
 
@@ -574,7 +591,7 @@ begin
   case State of
     DO_ANTIBAN: Antiban.DoAntiban(False, False);
     DO_BREAK: Antiban.DoAntiban();
-    RE_LOG: Logout.ClickLogout();
+    RE_LOG: Relog();
 
     TERMINATE_SCRIPT: TerminateScript();
     CLOSE_INTERFACE: RSInterface.Close(50);
