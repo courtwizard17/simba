@@ -14,7 +14,7 @@ program villisika;
 type
   EState = (PRINT_PROGRESS, RESET_TIMER, CLOSE_INTERFACE, HANDLE_LOGIN,
             TERMINATE_SCRIPT, DO_ANTIBAN, DO_BREAK, DEPOSIT_LOOT, BIRDHOUSE_RUN,
-            HARVEST, INSPECT, RESET_TRAIL, TO_OBJECT, RE_LOG);
+            HARVEST, INSPECT, SMALL_MOVE, TO_OBJECT, RE_LOG, TO_START);
 
   THerbiGUI = record (TScriptForm)
     BlockInputCheckbox, BirdhouseCheckbox: TLabeledCheckBox;
@@ -171,7 +171,7 @@ begin
   Antiban.AddTask(ONE_MINUTE * 3, @Antiban.RandomMouse, 1);
   Antiban.AddTask(ONE_MINUTE * 5, @Antiban.RandomRightClick, 1);
   Antiban.AddTask(ONE_MINUTE * 5, @Antiban.DoLoseFocus, 1);
-  Antiban.AddTask(ONE_MINUTE * 7, @Antiban.RandomRotate, 1);
+  Antiban.AddTask(ONE_MINUTE * 2, @Antiban.RandomRotate, 1);
 
   Antiban.AddBreak(BreakAfter * ONE_MINUTE, BreakFor * ONE_MINUTE, 0.3, 1);
 
@@ -389,6 +389,11 @@ begin
   Exit(False);
 end;
 
+function IsInBankArea(): Boolean;
+begin
+  Result := SRL.PointInPoly(RSW.GetMyPos(), [[9275, 1037], [9375, 1039], [9376, 1104], [9275, 1097]]);
+end;
+
 function TAntiban.HasTaskWaiting(): Boolean;
 var
   i: Int32;
@@ -434,20 +439,13 @@ begin
   S := Chat.GetMessage(7);
   Experience := XPBar.Read();
 
-  if SRL.Dice(66) then
-  begin
+  if SRL.Dice(33) then
+    ClickHelper(['spect', 'Ins', 'Attac', 'tack'])
+  else
     Mouse.Click(MOUSE_LEFT);
 
-    if not Mainscreen.DidRedClick() then
+  if not Mainscreen.DidRedClick() then
       Exit();
-
-  end else if not ClickHelper(['spect', 'Ins', 'Attac', 'tack']) then
-  begin
-    if SRL.Dice(50) then
-      Antiban.RandomRotate();
-
-    Exit();
-  end;
 
   WaitUntil(InspectFinished(Experience, S), 625, SRL.NormalRange(6500, 10500));
 end;
@@ -472,26 +470,21 @@ begin
   RSW.WalkBlind([Pos.X + Random(-20, 20), Pos.Y + Random(-20, 20)]);
 end;
 
-procedure ResetTrail();
-begin
-  if InactivityTimer.ElapsedTime() < 20000 then
-  begin
-    SmallRandomMove();
-    Exit();
-  end;
-
-  if InactivityTimer.ElapsedTime() < 120000 then
-  begin
-    MoveToStart();
-    Exit();
-  end else
-    Logout.ClickLogout();
-end;
-
 procedure Relog();
 begin
   Logout.ClickLogout();
   RelogTimer.Reset();
+end;
+
+function DepositItems(): Boolean;
+begin
+  if not Bank.IsOpen() then
+    Exit(False);
+
+  if Inventory.ContainsItem('Open herb sack') then
+    Inventory.ClickItem('Open herb sack', 'Empty');
+
+  Result := Bank.DepositRandomItems(['Open herb sack', 'Secateurs', 'Numulite']);
 end;
 
 procedure DepositLoot();
@@ -502,11 +495,7 @@ begin
   if not WaitUntil(Bank.IsOpen(), 1000, 6500) then
     Exit();
 
-  if Inventory.ContainsItem('Open herb sack') then
-    Inventory.ClickItem('Open herb sack', 'Empty');
-
-  Bank.DepositRandomItems(['Open herb sack', 'Secateurs', 'Numulite']);
-  WaitEx(750, 725);
+  DepositItems();
 
   if Bank.IsOpen() then
     Bank.Close(50);
@@ -534,7 +523,7 @@ begin
   if Antiban.HasTaskWaiting() then
     Exit(DO_ANTIBAN);
 
-  if SRL.PointInPoly(RSW.GetMyPos(), [[9275, 1037], [9375, 1039], [9376, 1104], [9275, 1097]]) then
+  if IsInBankArea() then
   begin
     if Antiban.HasBreakWaiting() then
       Exit(DO_BREAK);
@@ -578,7 +567,10 @@ begin
   if IsMinimapArrowVisible() then
     Exit(TO_OBJECT);
 
-  Exit(RESET_TRAIL);
+  if InactivityTimer.ElapsedTime() < 20000 then
+    Exit(SMALL_MOVE);
+
+  Exit(TO_START);
 end;
 
 procedure Loop();
@@ -602,8 +594,9 @@ begin
     HARVEST: HarvestHerbi();
     DEPOSIT_LOOT: DepositLoot();
     INSPECT: InspectObject();
-    RESET_TRAIL: ResetTrail();
     TO_OBJECT: MoveTowardsObject();
+    TO_START: MoveToStart();
+    SMALL_MOVE: SmallRandomMove();
 
     {$IFHASFILE Includes/chores.simba}
       BIRDHOUSE_RUN: BirdhouseRunner.DoBirdHouseRun();
@@ -635,8 +628,7 @@ end;
     if not Bank.IsOpen() then
       Exit(False);
 
-    if Inventory.CountEmptySlots() < 20 then
-      Bank.DepositRandomItems(['Open herb sack', 'Secateurs', 'Numulite']);
+    DepositItems();
 
     WaitUntil(Inventory.CountEmptySlots() > 20, 150, 2000);
 
