@@ -12,7 +12,7 @@ program villisika;
 {$ENDIF}
 
 type
-  EState = (PRINT_PROGRESS, RESET_TIMER, CLOSE_INTERFACE, HANDLE_LOGIN,
+  EState = (PRINT_PROGRESS, RESET_TIMER, CLOSE_INTERFACE, HANDLE_LOGIN, ROTATE,
             TERMINATE_SCRIPT, DO_ANTIBAN, DO_BREAK, DEPOSIT_LOOT, BIRDHOUSE_RUN,
             HARVEST, INSPECT, SMALL_MOVE, TO_OBJECT, RE_LOG, TO_START);
 
@@ -24,7 +24,7 @@ type
 
 var
   BreakFor, BreakAfter, StartXP, CurrentXP, GainedXP: Int32;
-  InactivityTimer, ReportTimer, RelogTimer: TStopwatch;
+  InactivityTimer, ReportTimer: TStopwatch;
   BlockInput, DoBirdhouseRuns: Boolean;
   Objecter: TRSObjectFinder;
   Chest: TRSObject;
@@ -375,7 +375,6 @@ begin
 
   InactivityTimer.Start();
   ReportTimer.Start();
-  RelogTimer.Start();
 end;
 
 function InspectFinished(Experience: Int32; S: String): Boolean;
@@ -470,12 +469,6 @@ begin
   RSW.WalkBlind([Pos.X + Random(-20, 20), Pos.Y + Random(-20, 20)]);
 end;
 
-procedure Relog();
-begin
-  Logout.ClickLogout();
-  RelogTimer.Reset();
-end;
-
 function DepositItems(): Boolean;
 begin
   if not Bank.IsOpen() then
@@ -556,10 +549,20 @@ begin
     {$ENDIF}
   end;
 
-  if InactivityTimer.ElapsedTime() > 90000 then
-    if not IsObjectVisible() then
-      if RelogTimer.ElapsedTime() < 90000 then
-        Exit(RE_LOG);
+  if SRL.Dice(30) then
+    if InactivityTimer.ElapsedTime() > 60000 then
+    begin
+      if SRL.Dice(50) then
+        Exit(ROTATE);
+
+      if SRL.Dice(50) then
+        Exit(SMALL_MOVE);
+
+      if SRL.Dice(50) then
+        Exit(TO_START);
+
+      Exit(RE_LOG);
+    end;
 
   if IsHerbiVisible() then
     Exit(HARVEST);
@@ -586,7 +589,7 @@ begin
   case State of
     DO_ANTIBAN: Antiban.DoAntiban(False, False);
     DO_BREAK: Antiban.DoAntiban();
-    RE_LOG: Relog();
+    RE_LOG: Logout.ClickLogout();
 
     TERMINATE_SCRIPT: TerminateScript();
     CLOSE_INTERFACE: RSInterface.Close(50);
@@ -600,6 +603,7 @@ begin
     TO_OBJECT: MoveTowardsObject();
     TO_START: MoveToStart();
     SMALL_MOVE: SmallRandomMove();
+    ROTATE: Antiban.RandomRotate();
 
     {$IFHASFILE Includes/chores.simba}
       BIRDHOUSE_RUN: BirdhouseRunner.DoBirdHouseRun();
