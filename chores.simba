@@ -868,6 +868,8 @@ var
   indexToUse : Int32;
 
 begin
+  WaitEx(2500, 500);
+
   if index = -1 then
     indexToUse := Self.MushIndex
   else
