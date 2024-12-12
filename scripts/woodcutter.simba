@@ -427,10 +427,11 @@ begin
   begin
     if Magic.CastSpell(ERSSpell.CAMELOT_TELEPORT) then
     begin
+      WriteDebug('Casted return teleport');
       Wait(5000);
       Break();
     end else
-      WriteDebug('Failed to cast return teleport!');
+      WriteDebug('Failed to cast return teleport');
   end;
 end;
 
