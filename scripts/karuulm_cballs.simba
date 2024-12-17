@@ -1,9 +1,9 @@
-program cballz;
+program smelter;
 {$I WaspLib/osr.simba}
 
 const
   BLOCK_INPUT = False;
-  BREAK_AFTER = 40;
+  BREAK_AFTER = 45;
   BREAK_FOR   = 5;
 
 var
@@ -18,6 +18,12 @@ var
 begin
   InactivityTimer.Resume();
   T := Task;
+end;
+
+function TRSMinimap.SetZoomToPoint(p: TPoint; randomness: Int32 = 0): Boolean; override;
+begin
+  Result := Self.InZoomRange(p);
+  randomness := 0;
 end;
 
 function WaitSmelting(): Boolean;
@@ -97,7 +103,7 @@ begin
 
   StartXP := XPBar.Read();
 
-  if StartXP < 1 then
+  if StartXP < 1024 then
     TerminateScript('Failed to read XP, make sure XPBar is set up correctly!');
 
   if not InRange(Options.GetZoomLevel(), 0, 10) then
