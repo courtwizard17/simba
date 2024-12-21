@@ -131,6 +131,9 @@ end;
 
 function GetState(): EState;
 begin
+  if InactivityTimer.ElapsedTime() > 300000 then
+    Exit(TERMINATE_SCRIPT);
+
   if not RSClient.IsLoggedIn() then
     Exit(HANDLE_LOGIN);
 
@@ -139,9 +142,6 @@ begin
 
   if HasGainedXP() then
     Exit(RESET_TIMER);
-
-  if InactivityTimer.ElapsedTime() > 300000 then
-    Exit(TERMINATE_SCRIPT);
 
   if ReportTimer.ElapsedTime() > 120000 then
     Exit(PRINT_PROGRESS);
@@ -156,7 +156,7 @@ var
 begin
   State := GetState();
 
-  WriteDebug(ToStr('State: ', State));
+  WriteDebug(ToStr(State));
 
   case State of
     TERMINATE_SCRIPT: TerminateScript();
