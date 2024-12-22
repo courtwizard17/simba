@@ -2,12 +2,78 @@ program butterflies;
 {$I WaspLib/osr.simba}
 
 type
-  EState = (PRINT_PROGRESS, RESET_TIMER, CLOSE_INTERFACE, HANDLE_LOGIN, TERMINATE_SCRIPT, DO_ANTIBAN);
+  EState = (PRINT_PROGRESS, RESET_TIMER, CLOSE_INTERFACE, HANDLE_LOGIN,
+            TERMINATE_SCRIPT, DO_ANTIBAN, TO_ZONE, CATCH);
+
+  TGUI = record (TScriptForm)
+    BreakForInput, BreakAfterInput: TLabeledEdit;
+    BlockInputCheckbox: TLabeledCheckBox;
+  end;
 
 var
   BreakFor, BreakAfter, StartXP, CurrentXP, GainedXP: Int32;
   InactivityTimer, ReportTimer: TStopwatch;
+  Zone, Aldarin, Savannah: TBox;
+  Lepidoptera: TCTS2Color;
   BlockInput: Boolean;
+  GUI: TGUI;
+
+procedure TGUI.StartScript(Sender: TObject); override;
+begin
+  BreakFor := Self.BreakForInput.GetText().ExtractInteger();
+  BlockInput := Self.BlockInputCheckbox.IsChecked();
+  BreakAfter := Self.BreakAfterInput.GetText().ExtractInteger();
+  inherited;
+end;
+
+procedure TGUI.Run(); override;
+var
+  Tab: TTabSheet;
+  F: TFont;
+begin
+  Self.Setup('Butterflies', Point(800, 500), False);
+  Self.Start.SetOnClick(@Self.StartScript);
+  Self.AddTab('Settings');
+
+  F.Init();
+  F.setName('Verdana');
+  F.SetQuality(fqCleartype);
+  Self.Form.setFont(F);
+  Self.PageControl.SetFont(F);
+  F.Free();
+
+  Tab := Self.GetTab('Settings');
+  Tab.SetTooltip('');
+
+  with Self.BreakAfterInput do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(160));
+    SetCaption('Break after:');
+    SetText('60');
+  end;
+
+  with Self.BlockInputCheckbox do
+  begin
+    Create(Tab);
+    SetCaption('Block Real Input?');
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(280));
+  end;
+
+  with Self.BreakForInput do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(220));
+    SetCaption('Break for:');
+    SetText('10');
+  end;
+
+  Self.CreateAccountManager(Tab);
+  inherited;
+end;
 
 procedure WriteDebug(Message: String);
 begin
@@ -82,6 +148,23 @@ begin
   ReportTimer.Reset();
 end;
 
+procedure SetupScript();
+begin
+  if Map.Position().InBox(Aldarin) then
+  begin
+    WriteDebug('Setting up kourend Aldarin and Ruby harvests');
+    Zone := [1244, 38622, 1298, 38718];
+    Lepidoptera := CTS2(1912231, 3, 0.04, 0.33);
+  end else
+  if Map.Position().InBox(Savannah) then
+  begin
+    WriteDebug('Setting up kourend Aldarin and Sunlight moths');
+    Zone := [2152, 38314, 2256, 38390];
+    Lepidoptera := CTS2(5076130, 1, 2.33, 5.03);
+  end else
+    TerminateScript('Unknown location, please start in Savannah or Aldarin hunter spot');
+end;
+
 procedure Init();
 begin
   if not RSClient.IsLoggedIn() then
@@ -91,7 +174,7 @@ begin
     StartXP := XPBar.Read();
 
   if StartXP < 1024 then
-    TerminateScript('Failed to read XP, make sure XPBar is set up!');
+    TerminateScript('Failed to read XP, make sure XPBar is set up');
 
   if Options.GetNPCAttackOption() <> ERSAttackOption.HIDDEN then
     Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
@@ -99,25 +182,71 @@ begin
   if not InRange(Options.GetZoomLevel(), 12, 18) then
     Options.SetZoomLevel(Random(12, 18));
 
-  Mouse.Speed := SRL.NormalRange(25, 35);
+  Mouse.Speed := SRL.NormalRange(28, 38);
+
+  Aldarin := [1200, 38622, 1340, 38762];
+  Savannah := [1996, 28102, 2500, 38506];
+
+  Map.SetupChunks([[[19, 47, 24, 44], [0]], [[23, 48, 26, 45], [0]]]);
 
   MM2MS.SetupZoom();
   SetupAntiban();
 
   if BlockInput then
   begin
-    WriteDebug('Script started with real input disabled.');
+    WriteDebug('Script started with real input disabled');
     WLSettings.RemoteInput.BlockInput := True;
     RSClient.RemoteInput.DisableRealInput();
   end else
   begin
-    WriteDebug('Script started with real input enabled.');
+    WriteDebug('Script started with real input enabled');
     WLSettings.RemoteInput.BlockInput := False;
     RSClient.RemoteInput.EnableRealInput();
   end;
 
+  SetupScript();
+
+  if not Inventory.IsOpen() then
+    Inventory.Open();
+
   InactivityTimer.Start();
   ReportTimer.Start();
+end;
+
+function FindButterflies(): TPointArray;
+var
+  ATPA: T2DPointArray;
+begin
+  if SRL.FindColors(Result, Lepidoptera, Mainscreen.Bounds()) = 0 then
+    Exit();
+
+  ATPA := Result.Cluster(50);
+  Result := ATPA.Means();
+  Result.Sort(Mainscreen.Center());
+end;
+
+procedure Click();
+var
+  TPA: TPointArray;
+  Pt: TPoint;
+  Exp: Int64;
+begin
+  TPA := FindButterflies();
+
+  if Length(TPA) = 0 then
+    Exit();
+
+  Exp := XPBar.Read();
+
+  for Pt in TPA do
+    RSClient.Image.DrawCrosshairs(Pt, 5, clBlue);
+
+  Mouse.Click(TPA[0], MOUSE_LEFT);
+
+  RSClient.Image.Clear();
+
+  if Mainscreen.DidRedClick() then
+    WaitUntil(Exp < XPBar.Read(), 500, SRL.NormalRange(4500, 9000));
 end;
 
 function TAntiban.HasTaskWaiting(): Boolean;
@@ -148,6 +277,11 @@ begin
 
   if Antiban.HasTaskWaiting() then
     Exit(DO_ANTIBAN);
+
+  if not Map.Position().InBox(Zone) then
+    Exit(TO_ZONE);
+
+  Exit(CATCH);
 end;
 
 procedure Loop();
@@ -155,7 +289,6 @@ var
   State: EState;
 begin
   State := GetState();
-
   WriteDebug(ToStr(State));
 
   case State of
@@ -165,12 +298,15 @@ begin
     RESET_TIMER: InactivityTimer.Reset();
     DO_ANTIBAN: Antiban.DoAntiban();
     HANDLE_LOGIN: Login.LoginPlayer();
+    CATCH: Click();
+    TO_ZONE: Map.Walker.WalkBlind(Zone.Center());
   end;
 
   WaitEx(200, 195);
 end;
 
 begin
+  GUI.Run();
   Init();
 
   repeat
