@@ -423,11 +423,10 @@ procedure ReturnSeers();
 var
   i: Int32;
 begin
-  for i:= 0 to 5 do
+  for i := 0 to 5 do
   begin
     if Magic.CastSpell(ERSSpell.CAMELOT_TELEPORT) then
     begin
-      WriteDebug('Casted return teleport');
       Wait(5000);
       Break();
     end else
@@ -534,7 +533,6 @@ var
   State: EState;
 begin
   State := GetState();
-
   WriteDebug(ToStr(State));
 
   case State of
