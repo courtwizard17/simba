@@ -420,10 +420,8 @@ begin
 end;
 
 procedure ReturnSeers();
-var
-  i: Int32;
 begin
-  for i := 0 to 5 do
+  for 0 to 5 do
   begin
     if Magic.CastSpell(ERSSpell.CAMELOT_TELEPORT) then
     begin
@@ -502,15 +500,14 @@ begin
       RSClient.Image.Clear();
       WaitChopping();
       Exit();
-    end else
-      Continue();
+    end;
   end;
 end;
 
 procedure DepositLogs();
 begin
   if Bot.Booth.Click() then
-    WaitUntil(Bank.IsOpen(), 250, 15000)
+    WaitUntil(Bank.IsOpen(), 500, 15000)
   else
     Antiban.RandomRotate();
 
