@@ -224,13 +224,19 @@ end;
 function FindButterflies(): TPointArray;
 var
   ATPA: T2DPointArray;
+  Pt: TPoint;
 begin
   if SRL.FindColors(Result, Lepidoptera, Mainscreen.Bounds()) = 0 then
     Exit();
 
   ATPA := Result.Cluster(50);
   Result := ATPA.Means();
-  Result.Sort(Mainscreen.Center());
+
+  for Pt in Result do
+    if Mainscreen.GetPlayerBox().Contains(Pt) then
+      Result.Remove(Pt);
+
+  Result.Sort(Mouse.Position());
 end;
 
 procedure Click();
