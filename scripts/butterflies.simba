@@ -13,7 +13,7 @@ type
 var
   BreakFor, BreakAfter, StartXP, CurrentXP, GainedXP: Int32;
   InactivityTimer, ReportTimer: TStopwatch;
-  Zone, Aldarin, Savannah: TBox;
+  Zone, Aldarin, Savannah, Battlefront: TBox;
   Lepidoptera: TCTS2Color;
   BlockInput: Boolean;
   GUI: TGUI;
@@ -162,6 +162,12 @@ begin
     Zone := [2152, 38314, 2256, 38390];
     Lepidoptera := CTS2(5076130, 1, 2.33, 5.03);
   end else
+    if Map.Position().InBox(Battlefront) then
+  begin
+    WriteDebug('Setting up kourend Battlefront and Warlocks');
+    Zone := [752, 35322, 880, 35494];
+    Lepidoptera := CTS2(1450888, 1, 0.01, 0.01);
+  end else
     TerminateScript('Unknown location, please start in Savannah or Aldarin hunter spot');
 end;
 
@@ -186,8 +192,10 @@ begin
 
   Aldarin := [1200, 38622, 1340, 38762];
   Savannah := [1996, 28102, 2500, 38506];
+  Battlefront := [580, 35270, 1012, 35566];
 
-  Map.SetupChunks([[[19, 47, 24, 44], [0]], [[23, 48, 26, 45], [0]]]);
+  Map.SetupChunks([[[19, 47, 24, 44], [0]], [[23, 48, 26, 45], [0]],
+                   [[17, 59, 21, 56], [0]]]);
 
   MM2MS.SetupZoom();
   SetupAntiban();
@@ -234,7 +242,10 @@ begin
   TPA := FindButterflies();
 
   if Length(TPA) = 0 then
+  begin
+    Sleep(500);
     Exit();
+  end;
 
   Exp := XPBar.Read();
 
