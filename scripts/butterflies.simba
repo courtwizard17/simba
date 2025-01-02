@@ -249,7 +249,7 @@ begin
 
   if Length(TPA) = 0 then
   begin
-    Sleep(500);
+    Sleep(750);
     Exit();
   end;
 
