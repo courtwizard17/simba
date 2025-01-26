@@ -160,9 +160,9 @@ const
   SPACE_COLOR : TCTS2Color := CTS2(9029, 1, 0.01, 0.01); //CTS2(1192279, 8, 0.17, 4.86);
 var
   ATPA : T2DPointArray;
-  msC : TPoint := Mainscreen.Center();
+  msC : TPoint := Mainscreen.Center;
 begin
-  SRL.FindColors(Result, SPACE_COLOR, Mainscreen.Bounds());
+  SRL.FindColors(Result, SPACE_COLOR, Mainscreen.Bounds);
   Result := Result.Grow(3);
   ATPA := Result.Cluster(10);
   ATPA := ATPA.SortFrom(msC);
@@ -509,7 +509,7 @@ begin
       continue;
     end;
 
-    birdHouseATPA := birdHouseATPA.SortFrom(MainScreen.Center());
+    birdHouseATPA := birdHouseATPA.SortFrom(MainScreen.Center);
 
     Mouse.Move(birdHouseATPA[0].RandomValue());
 
@@ -651,7 +651,7 @@ begin
       continue;
     end;
 
-    birdHouseATPA := birdHouseATPA.SortFrom(Mainscreen.Center());
+    birdHouseATPA := birdHouseATPA.SortFrom(Mainscreen.Center);
     Mouse.Move(birdhouseATPA[0].RandomValue());
 
     if Self.ConfirmUptext(['mpty']) then
@@ -921,7 +921,7 @@ var
   ropeClicked : Boolean;
 
 begin
-  if SRL.FindColors(tpa, CAVE_FLOOR_COL, Mainscreen.Bounds()) < 1000 then
+  if SRL.FindColors(tpa, CAVE_FLOOR_COL, Mainscreen.Bounds) < 1000 then
   begin
     Writeln("Not in cave!");
     Exit(true);
@@ -929,7 +929,7 @@ begin
 
   for 0 to 5 do
   begin
-    if SRL.FindColors(tpa, ROPE_COL, Mainscreen.Bounds()) < 1 then
+    if SRL.FindColors(tpa, ROPE_COL, Mainscreen.Bounds) < 1 then
     begin
       Antiban.RandomRotate();
       continue;
@@ -952,7 +952,7 @@ begin
   if not ropeClicked then
     Exit(false);
 
-  Result := WaitUntil(SRL.CountColor(CAVE_FLOOR_COL, Mainscreen.Bounds()) < 1000, Random(250, 600), 10000);
+  Result := WaitUntil(SRL.CountColor(CAVE_FLOOR_COL, Mainscreen.Bounds) < 1000, Random(250, 600), 10000);
 end;
 
 function TBirdHouseInclude.HandleNavigating() : Boolean;
@@ -1798,10 +1798,10 @@ var
     SearchPt: TPoint;
     i: Int32;
   begin
-    if not (FilterPt in Mainscreen.Bounds()) then
+    if not (FilterPt in Mainscreen.Bounds) then
       Exit(False);
 
-    if SRL.FindColors(BorderTPA, Self.Data.BorderColor, MainScreen.Bounds()) = 0 then
+    if SRL.FindColors(BorderTPA, Self.Data.BorderColor, MainScreen.Bounds) = 0 then
       Exit(False);
 
     BorderATPA := BorderTPA.Cluster(Mainscreen.NormalizeDistance(32));
@@ -1811,7 +1811,7 @@ var
 
       if SRL.PointInPoly(FilterPt, Self.TPA) then
       begin
-        Self.TPA := Self.TPA.SortFrom(MainScreen.Center());
+        Self.TPA := Self.TPA.SortFrom(MainScreen.Center);
         SearchFiltered := Self.TPA.FilterDist(0, MainScreen.NormalizeDistance(140), Self.TPA[0].X, Self.TPA[0].Y);
         SearchFiltered := SearchFiltered.SortFrom(MainScreen.Center);
         SearchPt := SearchFiltered.Mean();
@@ -1915,7 +1915,7 @@ var
       Exit();
 
     FindBox := Cuboids[0].Bounds();
-    FindBox.LimitTo(MainScreen.Bounds());
+    FindBox.LimitTo(MainScreen.Bounds);
 
     if SRL.FindColors(SearchTPA, Self.Data.LeprechaunColor, FindBox) = 0 then
       Exit();
