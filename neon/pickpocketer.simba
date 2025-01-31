@@ -2,31 +2,122 @@ program pickpocketer;
 {$I WaspLib/osr.simba}
 {$I chores.simba}
 
-begin
-  Login.PlayerIndex := 0;
-end;
+type
+  EState = (PICK_POCKET, EAT_FOOD, RE_STOCK);
 
-const
-  BREAKAFTER  = 45;
-  BREAKFOR    = 5;
-  FOODAMOUNT  = 12;
-  FOODNAME    = 'Bass';
-
-  BIRDHOUSES  = True;
-  INTERVAL    = 40 * ONE_MINUTE;
-  SEED        = 'Potato';
+  TGUI = record (TScriptForm)
+    BlockInputCheckbox, BirdhouseCheckbox: TLabeledCheckBox;
+    BreakForInput, BreakAfterInput: TLabeledEdit;
+    FoodAmountInput: TLabeledEdit;
+    FoodCombobox: TLabeledCombobox;
+  end;
 
 var
-  StartXP, CurrentXP, GainedXP, MinHP: Int32;
+  StartXP, CurrentXP, GainedXP, MinHP, BreakFor, BreakAfter, FoodAmount: Int32;
+  Birdhouses, UsingPouches, BlockInput: Boolean;
   InactivityTimer, ReportTimer: TStopwatch;
   ThievArea, BankArea: TPointArray;
   ReturnSpell: ERSSpell;
+  UpTexts: TStringArray;
   Runes: TRSItemArray;
   Booth: TRSObject;
-  Logs: ERSLogType;
   CityArea: TBox;
   RSW: TRSWalker;
   Food: TRSItem;
+  GUI: TGUI;
+
+procedure TGUI.StartScript(Sender: TObject); override;
+begin
+  BreakFor := Self.BreakForInput.GetText().ExtractInteger();
+  BlockInput := Self.BlockInputCheckbox.IsChecked();
+  BreakAfter := Self.BreakAfterInput.GetText().ExtractInteger();
+  Birdhouses := Self.BirdhouseCheckbox.IsChecked();
+  FoodAmount := Self.FoodAmountInput.GetText().ExtractInteger();
+  Food := Self.FoodCombobox.GetText();
+
+  inherited;
+end;
+
+procedure TGUI.Run(); override;
+var
+  Tab: TTabSheet;
+  Font: TFont;
+begin
+  Self.Setup('Pickpocketer', Point(800, 500), False);
+  Self.Start.SetOnClick(@Self.StartScript);
+
+  Font.Init();
+  Font.setName('Verdana');
+  Font.SetQuality(fqCleartype);
+  Self.Form.setFont(Font);
+  Self.PageControl.SetFont(Font);
+  Font.Free();
+
+  Self.AddTab('Settings');
+
+  Tab := Self.GetTab('Settings');
+  Tab.SetTooltip('');
+
+  with Self.FoodCombobox do
+  begin
+    Create(Tab);
+    SetCaption('Food');
+    SetLeft(TControl.AdjustToDPI(470));
+    SetTop(TControl.AdjustToDPI(160));
+    AddItemArray(["Stew", "Lobster", "Shark", "Manta ray",
+                  "Bass", "Cooked karambwan"]);
+    SetItemIndex(4);
+  end;
+
+  with Self.FoodAmountInput do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(470));
+    SetTop(TControl.AdjustToDPI(210));
+    SetToolTip('How many food to withdraw from bank?');
+    SetCaption('Food amount:');
+    SetText('6');
+  end;
+
+  with Self.BreakAfterInput do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(160));
+    SetCaption('Break after');
+    SetText('45');
+  end;
+
+  with Self.BlockInputCheckbox do
+  begin
+    Create(Tab);
+    SetCaption('Block real input');
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(280));
+  end;
+
+  with Self.BreakForInput do
+  begin
+    Create(Tab);
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(220));
+    SetCaption('Break for');
+    SetText('5');
+  end;
+
+  with Self.BirdhouseCheckbox do
+  begin
+    Create(Tab);
+    SetCaption('Do birdhouse runs');
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(310));
+  end;
+
+  Self.CreateAccountManager(Tab);
+  Self.CreateBirdhouseRunSettings();
+
+  inherited;
+end;
 
 procedure OnBreakEnd(Task: PBreakTask);
 var
@@ -78,10 +169,10 @@ end;
 
 procedure SetupAntiban();
 begin
-  Antiban.AddTask(ONE_MINUTE  * 4, @Antiban.RandomRightClick, 1);
-  Antiban.AddTask(ONE_MINUTE  * 2, @Antiban.RandomMouse, 1);
-  Antiban.AddTask(ONE_MINUTE  * 5, @Antiban.RandomRotate, 1);
-  Antiban.AddTask(ONE_MINUTE  * 4, @Antiban.DoLoseFocus, 1);
+  Antiban.AddTask(ONE_MINUTE * 4, @Antiban.RandomRightClick, 1);
+  Antiban.AddTask(ONE_MINUTE * 2, @Antiban.RandomMouse, 1);
+  Antiban.AddTask(ONE_MINUTE * 5, @Antiban.RandomRotate, 1);
+  Antiban.AddTask(ONE_MINUTE * 4, @Antiban.DoLoseFocus, 1);
 
   Antiban.AddBreak(ONE_MINUTE * 6, ONE_SECOND * 5, 1, 0);
   Antiban.AddBreak(BREAKAFTER * ONE_MINUTE, BREAKFOR * ONE_MINUTE, 0.3, 1);
@@ -92,24 +183,26 @@ end;
 
 procedure Init();
 var
-  ArdougneBank: TPointArray := [[5987, 3297], [6015, 3297], [6015, 3330], [5987, 3330]];
-  ArdougneBankBoothTile: TPoint := [6016, 3304];
-  ArdougneCityArea: TBox := [5888, 3166, 6112, 3391];
-  DraynorBank: TPointArray := [[7754, 3463], [7784, 3462], [7784, 3490], [7754, 3489]];
-  DraynorBankBoothTile: TPoint := [7758, 3468];
-  DraynorCityArea: TBox := [7700, 3200, 8500, 3800];
   DraynorMarketArea: TPointArray := [[7686, 3425], [7740, 3428], [7741, 3472], [7685, 3473]];
+  ArdougneBank: TPointArray := [[5987, 3297], [6015, 3297], [6015, 3330], [5987, 3330]];
+  DraynorBank: TPointArray := [[7754, 3463], [7784, 3462], [7784, 3490], [7754, 3489]];
+  ArdougneCityArea: TBox := [5888, 3166, 6112, 3391];
+  DraynorCityArea: TBox := [7700, 3200, 8500, 3800];
+  ArdougneBankBoothTile: TPoint := [6016, 3304];
+  DraynorBankBoothTile: TPoint := [7758, 3468];
   Pos: TPoint;
 begin
-  if BIRDHOUSES then
-  begin
-    Logs := BirdHouseRunner.GetLogForHunterLevel(Stats.GetLevel(ERSSkill.HUNTER, False));
-    WriteDebug(ToStr('Logtype for birdhouses based on level: ', Logs));
-    BirdHouseRunner.Setup(Logs, SEED, False, INTERVAL, False);
+  if Birdhouses then
     BirdHouseRunner.Init();
-  end;
 
-  Mouse.Speed := SRL.NormalRange(22, 28);
+  Mouse.Speed := Random(10, 15);
+  Mouse.Gravity := Mouse.Gravity * 3;
+  Mouse.Speed := 2 * Mouse.Speed;
+  Mouse.Wind := Mouse.Wind / 3;
+  Mouse.CanIdle := False;
+  Mouse.MissChance := 0;
+
+  UpTexts += ['Pickpoc', 'cket'];
 
   RSW.Setup();
   SetupAntiban();
@@ -130,7 +223,7 @@ begin
   if not InRange(Options.GetZoomLevel(), 10, 25) then
     Options.SetZoomLevel(Random(10, 25));
 
-  MinHP := Floor(Minimap.GetHPLevel() * 0.5);
+  MinHP := Floor(Minimap.GetHPLevel() * 0.7);
   WriteDebug(ToStr('Will eat at HP: ', MinHP));
 
   Pos := RSW.GetMyPos();
@@ -138,9 +231,11 @@ begin
   if ArdougneCityArea.Contains(Pos) then
   begin
     WriteDebug('Setting up at Ardougne Knights.');
+    UpTexts += ['night', 'Ardougn'];
     BankArea := ArdougneBank;
     ThievArea := ArdougneBank;
     CityArea := ArdougneCityArea;
+    UsingPouches := True;
     Booth.SetupUpText(['Bank','Bank booth']);
     Booth.Setup(6, [ArdougneBankBoothTile]);
     Booth.Finder.Colors += CTS2(6251367, 1, 1.67, 1.48);
@@ -150,6 +245,7 @@ begin
   else if DraynorCityArea.Contains(Pos) then
   begin
     WriteDebug('Setting up at Draynor farmer.');
+    UpTexts += ['armer', 'aster'];
     BankArea := DraynorBank;
     ThievArea := DraynorMarketArea;
     CityArea := DraynorCityArea;
@@ -160,9 +256,20 @@ begin
     ReturnSpell := ERSSpell.LUMBRIDGE_TELEPORT;
   end;
 
-  Food := FOODNAME;
   InactivityTimer.Start();
   ReportTimer.Start();
+end;
+
+function ShouldRestock(): Boolean;
+begin
+  if not Inventory.IsOpen() then
+    Inventory.Open();
+
+  if Inventory.CountEmptySlots() < 2 then
+    Exit(True);
+
+  if not Inventory.ContainsItem(Food) then
+    Exit(True);
 end;
 
 procedure Restock();
@@ -186,6 +293,20 @@ begin
     WaitEx(1500, 1495);
 end;
 
+procedure EatFood();
+begin
+  if not Inventory.ClickItem(Food, 'Eat') then
+  begin
+    WriteDebug('Failed to eat food!');
+
+    if SRL.Dice(33) then
+      Antiban.RandomRotate();
+
+    Exit();
+  end else
+    WaitEx(2250, 325)
+end;
+
 procedure Steal();
 var
   Experience: Int32;
@@ -202,7 +323,7 @@ procedure Pickpocket();
 var
   TPA: TPointArray;
 begin
-  if Mainscreen.IsUpText('cket') then
+  if Mainscreen.IsUpText(UpTexts) then
   begin
     Steal();
     Exit();
@@ -211,14 +332,18 @@ begin
   if not RSW.InPoly(ThievArea) then
     RSW.WebWalk(ThievArea.Mean());
 
-  SRL.FindColors(TPA, CTS2(16711935, 1, 0.01, 0.01), Mainscreen.Bounds());
+  SRL.FindColors(TPA, CTS2(16711935, 1, 0.01, 0.01), Mainscreen.Bounds);
 
   if TPA.Len() = 0 then
+  begin
+    if InactivityTimer.ElapsedTime() > 45000 then
+      Antiban.RandomRotate();
+
     Exit();
+  end else
+    Mouse.HumanMove(TPA.Mean());
 
-  Mouse.HumanMove(TPA.Mean());
-
-  if Mainscreen.IsUpText('cket') then
+  if Mainscreen.IsUpText(UpTexts) then
     Steal();
 end;
 
@@ -239,8 +364,24 @@ begin
   Inventory.ClickItem(Item);
 end;
 
-procedure Loop();
+function GetState(): EState;
 begin
+  if Minimap.GetHPLevel() < MinHP then
+    Exit(EAT_FOOD);
+
+  if ShouldRestock() then
+    Exit(RE_STOCK);
+
+  Exit(PICK_POCKET);
+end;
+
+procedure Loop();
+var
+  State: EState;
+begin
+  if InactivityTimer.ElapsedTime() > 300000 then
+    TerminateScript('No XP gained in 5 minutes.');
+
   Antiban.DoAntiban();
 
   if not RSClient.IsLoggedIn() then
@@ -249,15 +390,8 @@ begin
   if RSInterface.IsOpen() then
     RSInterface.Close();
 
-  if Minimap.GetHPLevel() < MinHP then
-    if not Inventory.ClickItem(Food) then
-      TerminateScript('Could not eat food, possible out of it?');
-
   if HasGainedXP() then
     InactivityTimer.Reset();
-
-  if InactivityTimer.ElapsedTime() > 300000 then
-    TerminateScript('No XP gained in 5 minutes.');
 
   if ReportTimer.ElapsedTime() > 120000 then
     PrintProgress();
@@ -266,20 +400,21 @@ begin
     if BirdHouseRunner.CanDoBirdHouseRun() then
       BirdHouseRunner.DoBirdHouseRun();
 
-  HandlePouches();
+  if UsingPouches then
+    HandlePouches();
 
-  if ((Inventory.CountEmptySlots() < 2) or (Inventory.CountItem(Food) = 0)) then
-  begin
-    Restock();
-    Exit();
+  State := GetState();
+
+  if State <> EState.PICK_POCKET then
+    WriteDebug(ToStr(State));
+
+  case State of
+    ESTate.EAT_FOOD: EatFood();
+    EState.PICK_POCKET: Pickpocket();
+    EState.RE_STOCK: Restock();
   end;
 
-  if InactivityTimer.ElapsedTime() > 30000 then
-    Antiban.RandomRotate();
-
-  Pickpocket();
-
-  WaitEx(500, 450);
+  WaitEx(695, 690);
 end;
 
 function TBirdHouseInclude.OnStart(): Boolean; override;
@@ -293,41 +428,36 @@ begin
   for i := 0 to High(Antiban.Tasks) do
     Antiban.Tasks[i].Countdown.Pause();
 
-  BankTimeout.Init(45000);
+  BankTimeout.Init(55000);
 
   while not BankTimeOut.IsFinished() and not Bank.IsOpen() do
-  begin
-    Booth.WalkClick();
-    WaitUntil(Bank.IsOpen(), 250, 7500);
-  end;
+    if Booth.WalkClick() then
+      WaitUntil(Bank.IsOpen(), 750, 12500);
 
   if not Bank.IsOpen() then
     Exit(False);
 
-  if Inventory.CountEmptySlots() < 28 then
+  if Bank.DepositAll() then
+    if WaitUntil(Inventory.CountEmptySlots() > 25, 500, 2000) then
+      WaitEx(750, 500);
+
+  if not Self.WithdrawNextRun() then
   begin
+    Self.DebugLn("Failed to get bank items");
     Bank.DepositAll();
-    WaitUntil(Inventory.CountEmptySlots() > 25, 150, 2000);
-
-    if not Self.WithdrawNextRun() then
-    begin
-      Self.DebugLn("Failed to get bank items");
-      Bank.DepositAll();
-      Bank.Close();
-      BirdhouseRunner.IsDisabled := True;
-      Exit(False);
-    end;
-
-    for j := 0 to High(Runes) do
-    begin
-      Item := TRSBankItem.Setup(Runes[j], 10, False);
-      Bank.WithdrawItem(Item, False);
-      WaitEx(500, 450);
-    end;
-    Bank.Close(60);
+    Bank.Close();
+    BirdhouseRunner.IsDisabled := True;
+    Exit(False);
   end;
 
-  Result := True;
+  for j := 0 to High(Runes) do
+  begin
+    Item := TRSBankItem.Setup(Runes[j], 10, False);
+    Bank.WithdrawItem(Item, False);
+    WaitEx(800, 450);
+  end;
+
+  Result := Bank.Close(60);
 end;
 
 procedure TBirdHouseInclude.OnComplete(); override;
@@ -336,14 +466,15 @@ var
 begin
   WriteDebug('Birdhouse run completed');
 
-  Magic.CastSpell(ReturnSpell);
-  WaitEx(5750, 750);
+  if Magic.CastSpell(ReturnSpell) then
+    WaitEx(5750, 750);
 
   for i := 0 to High(Antiban.Tasks) do
     Antiban.Tasks[i].Countdown.Resume();
 end;
 
 begin
+  GUI.Run();
   Init();
 
   repeat
