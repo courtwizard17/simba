@@ -428,6 +428,9 @@ begin
   for i := 0 to High(Antiban.Tasks) do
     Antiban.Tasks[i].Countdown.Pause();
 
+  if Inventory.ContainsItem(Food) then
+    Inventory.ClickItem(Food);
+
   BankTimeout.Init(55000);
 
   while not BankTimeOut.IsFinished() and not Bank.IsOpen() do
