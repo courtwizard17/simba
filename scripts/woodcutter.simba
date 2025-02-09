@@ -1,19 +1,12 @@
 program woodcutter;
 {$I WaspLib/osr.simba}
-{$IFHASFILE Includes/chores.simba}
-  {$I chores.simba}
-{$ELSE}
-  begin
-    WriteLn('Chore include not found, downloading it now.');
-    DownloadToFile('https://raw.githubusercontent.com/courtwizard17/simba/refs/heads/main/chores.simba', 'Includes/chores.simba');
-    TerminateScript('Chore include downloaded, restart the script.');
-  end;
-{$ENDIF}
+{$I chores.simba}
 
 type
   ETreeType = (OAK_TREE, WILLOW_TREE, MAPLE_TREE, YEW_TREE, MAGIC_TREE);
   EState = (PRINT_PROGRESS, TRAVEL_BANK, TRAVEL_ZONE, DEPOSIT_LOGS, BIRDHOUSE_RUN, RESET_TIMER,
-            CLOSE_INTERFACE, HANDLE_LOGIN, RETURN_SEERS, TERMINATE_SCRIPT, DO_ANTIBAN, CHOP);
+            CLOSE_INTERFACE, HANDLE_LOGIN, RETURN_SEERS, TERMINATE_SCRIPT, DO_ANTIBAN, CHOP,
+            PICK_NEST);
 
   TWoodcutter = record
     Trees: Array of TRSObjectV2;
@@ -107,9 +100,7 @@ begin
   end;
 
   Self.CreateAccountManager(Tab);
-  {$IFHASFILE Includes/chores.simba}
-    Self.CreateBirdhouseRunSettings();
-  {$ENDIF}
+  Self.CreateBirdhouseRunSettings();
   inherited;
 end;
 
@@ -178,10 +169,133 @@ begin
   WriteDebug('Stopped animating.');
 end;
 
+function GetChoppingAreaMMDots(DotType: ERSMinimapDot): TPointArray;
+var
+  Dots: TPointArray;
+  Dot: TPoint;
+begin
+  Dots := Minimap.GetDots(DotType);
+
+  if Length(Dots) = 0 then
+    Exit(Dots);
+
+  Dots.Sort(Minimap.Center);
+
+  for Dot in Dots do
+  begin
+    if Bot.Zone.Expand(4).Contains(Map.Walker.MMToMap(Map.Position(), Dot)) then
+    begin
+      Result += Dot;
+      RSClient.Image.DrawCrosshairs(Dot, 5, clPink);
+      Sleep(50);
+    end;
+  end;
+end;
+
+function FindNestMS(out Mean: TPoint; Tile: TPoint): Boolean;
+var
+  Rect: TRectangle;
+  TPA: TPointArray;
+  Angle: Double;
+  Bounds: TBox;
+begin
+  Angle := Minimap.GetCompassAngle(False);
+  Rect := Minimap.VectorToMSRect(Vec3(Tile.X + 2, Tile.Y + 2, 0), 1, 1, Angle);
+  RSClient.Image.DrawRect(Rect, clRed);
+  Bounds := Rect.Bounds().Expand(4);
+  Bounds.LimitTo(Mainscreen.Bounds);
+
+  SRL.FindColors(TPA, CTS2(3621962, 9, 0.19, 0.54), Bounds);
+
+  if TPA.Len() = 0 then
+    Exit(False);
+
+  Mean := TPA.Mean();
+  Result := TPA.Len() > 2;
+end;
+
+function HasNest(): Boolean;
+var
+  Dots: TPointArray;
+  N, Dot: TPoint;
+  Found: Boolean;
+  Msg: String;
+  i: Int32;
+begin
+  if ChatButtons.GetActive() <> ERSChatButton.ALL_CHAT then
+    ChatButtons.Open(ERSChatButton.ALL_CHAT);
+
+  if InRange(Chat.GetScrollPosition(), 1, 99) then
+    Chat.SetScrollPosition(100);
+
+  for i := 8 downto 6 do
+  begin
+    Msg := Chat.GetMessage(i, [CTS0(255, 0).Color]);
+
+    if Msg.Contains('nest') then
+      Found := True;
+  end;
+
+  if not Found then
+    Exit(False);
+
+  Dots := GetChoppingAreaMMDots(ERSMinimapDot.ITEM);
+
+  if Length(Dots) = 0 then
+    Exit(False);
+
+  for Dot in Dots do
+    if FindNestMS(N, Dot) then
+      Exit(True);
+end;
+
+function ClickHelper(UpTexts: TStringArray): Boolean;
+begin
+  if Mainscreen.IsUpText(UpTexts, 175) then
+  begin
+    Mouse.Click(MOUSE_LEFT);
+    Exit(True);
+  end else
+    ChooseOption.Open();
+
+  if ChooseOption.HasOption(UpTexts) then
+  begin
+    ChooseOption.Select(UpTexts);
+    Exit(True);
+  end;
+end;
+
+procedure PickNest();
+var
+  EmptySlots: Int32;
+  Dots: TPointArray;
+  Dot, Pt: TPoint;
+begin
+  Dots := GetChoppingAreaMMDots(ERSMinimapDot.ITEM);
+
+  if Length(Dots) = 0 then
+    Exit();
+
+  EmptySlots := Inventory.CountEmptySlots();
+
+  for Dot in Dots do
+  begin
+    if FindNestMS(Pt, Dot) then
+      Mouse.HumanMove(Pt)
+    else
+      Continue();
+
+    if not ClickHelper(['nest']) then
+      Continue();
+
+    WaitUntil(EmptySlots > Inventory.CountEmptySlots(), 250, 5000);
+  end;
+end;
+
 function Fantiban(): Boolean;
 begin
   Antiban.DoAntiban(False, False);
-  Result := (not IsAnimating() or Inventory.IsFull());
+  Result := (not IsAnimating() or Inventory.IsFull() or HasNest());
 end;
 
 procedure WaitChopping();
@@ -369,13 +483,6 @@ end;
 
 procedure Init();
 begin
-  if FileExists(AppPath + '\Includes\chores.simba') then
-  begin
-    DeleteFile(AppPath + '\Includes\chores.simba');
-    WriteLn('Updating chore include');
-    DownloadToFile('https://raw.githubusercontent.com/courtwizard17/simba/refs/heads/main/chores.simba', 'Includes/chores.simba');
-  end;
-
   if not RSClient.IsLoggedIn() then
     Login.LoginPlayer();
 
@@ -385,10 +492,8 @@ begin
   if StartXP < 1024 then
     TerminateScript('Failed to read XP, make sure XPBar is set up!');
 
-  {$IFHASFILE Includes/chores.simba}
-    if DoBirdhouseRuns then
-      BirdHouseRunner.Init();
-  {$ENDIF}
+  if DoBirdhouseRuns then
+    BirdHouseRunner.Init();
 
   if Options.GetNPCAttackOption() <> ERSAttackOption.HIDDEN then
     Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
@@ -441,6 +546,8 @@ begin
       Exit(True);
 end;
 
+
+
 function GetState(): EState;
 begin
   if InactivityTimer.ElapsedTime() > 300000 then
@@ -464,11 +571,9 @@ begin
   if Map.Position().InBox([10424, 34766, 11244, 35570]) then
     Exit(RETURN_SEERS);
 
-  {$IFHASFILE Includes/chores.simba}
-    if DoBirdhouseRuns then
-      if BirdhouseRunner.CanDoBirdHouseRun() then
-        Exit(BIRDHOUSE_RUN);
-  {$ENDIF}
+  if DoBirdhouseRuns then
+    if BirdhouseRunner.CanDoBirdHouseRun() then
+      Exit(BIRDHOUSE_RUN);
 
   if Inventory.IsFull() then
   begin
@@ -479,7 +584,12 @@ begin
   end;
 
   if Map.Position().InBox(Bot.Zone) then
+  begin
+    if HasNest() then
+      Exit(PICK_NEST);
+
     Exit(CHOP);
+  end;
 
   Exit(TRAVEL_ZONE);
 end;
@@ -498,6 +608,9 @@ begin
     if Tree.Click() then
     begin
       RSClient.Image.Clear();
+
+      WaitEx(2500, 2000);
+
       WaitChopping();
       Exit();
     end;
@@ -533,9 +646,7 @@ begin
   WriteDebug(ToStr(State));
 
   case State of
-    {$IFHASFILE Includes/chores.simba}
-      BIRDHOUSE_RUN: BirdhouseRunner.DoBirdHouseRun();
-    {$ENDIF}
+    BIRDHOUSE_RUN: BirdhouseRunner.DoBirdHouseRun();
 
     TERMINATE_SCRIPT: TerminateScript();
     CLOSE_INTERFACE: RSInterface.Close(50);
@@ -545,6 +656,7 @@ begin
     DO_ANTIBAN: Antiban.DoAntiban();
     HANDLE_LOGIN: Login.LoginPlayer();
 
+    PICK_NEST: PickNest();
     DEPOSIT_LOGS: DepositLogs();
     TRAVEL_ZONE: Map.Walker.WebWalk(Bot.Zone.Center());
     TRAVEL_BANK: Map.Walker.WebWalk(Bot.Bank.Center());
@@ -554,69 +666,67 @@ begin
   WaitEx(175, 170);
 end;
 
-{$IFHASFILE Includes/chores.simba}
-  function TBirdHouseInclude.OnStart() : Boolean; override;
-  var
-    RuneArray: TRSItemArray := ['Law rune', 'Air rune'];
-    RuneBankItem: TRSBankItem;
-    BankTimeout: TCountdown;
-    Rune: TRSItem;
-    i: Int32;
+function TBirdHouseInclude.OnStart() : Boolean; override;
+var
+  RuneArray: TRSItemArray := ['Law rune', 'Air rune'];
+  RuneBankItem: TRSBankItem;
+  BankTimeout: TCountdown;
+  Rune: TRSItem;
+  i: Int32;
+begin
+  WriteDebug('Starting a birdhouse run');
+
+  for i := 0 to High(Antiban.Tasks) do
+    Antiban.Tasks[i].Countdown.Pause();
+
+  BankTimeout.Init(68750);
+
+  while not BankTimeOut.IsFinished() and not Bank.IsOpen() do
   begin
-    WriteDebug('Starting a birdhouse run');
-
-    for i := 0 to High(Antiban.Tasks) do
-      Antiban.Tasks[i].Countdown.Pause();
-
-    BankTimeout.Init(68750);
-
-    while not BankTimeOut.IsFinished() and not Bank.IsOpen() do
-    begin
-      if Bot.Booth.WalkClick() then
-        WaitUntil(Bank.IsOpen(), 250, 8000);
-    end;
-
-    if not Bank.IsOpen() then
-      Exit(False);
-
-    if Inventory.CountEmptySlots() < 28 then
-      Bank.DepositAll();
-
-    WaitUntil(Inventory.CountEmptySlots() > 25, 150, 2000);
-
-    if not Self.WithdrawNextRun() then
-    begin
-      Self.DebugLn("Failed to get bank items");
-      Bank.DepositAll();
-      Bank.Close();
-      BirdhouseRunner.IsDisabled := True;
-      Exit(False);
-    end;
-
-    for Rune in RuneArray do
-    begin
-      RuneBankItem := TRSBankItem.Setup(Rune, 10, False);
-      Bank.WithdrawItem(RuneBankItem, False);
-      WaitEx(500, 450);
-    end;
-
-    WaitEx(325, 250);
-
-    Result := Bank.Close(50);
+    if Bot.Booth.WalkClick() then
+      WaitUntil(Bank.IsOpen(), 250, 8000);
   end;
 
-  procedure TBirdHouseInclude.OnComplete(); override;
-  var
-    i: Int32;
+  if not Bank.IsOpen() then
+    Exit(False);
+
+  if Inventory.CountEmptySlots() < 28 then
+    Bank.DepositAll();
+
+  WaitUntil(Inventory.CountEmptySlots() > 25, 150, 2000);
+
+  if not Self.WithdrawNextRun() then
   begin
-    WriteDebug('Completed a birdhouse run');
-
-    ReturnSeers();
-
-    for i := 0 to High(Antiban.Tasks) do
-      Antiban.Tasks[i].Countdown.Resume();
+    Self.DebugLn("Failed to get bank items");
+    Bank.DepositAll();
+    Bank.Close();
+    BirdhouseRunner.IsDisabled := True;
+    Exit(False);
   end;
-{$ENDIF}
+
+  for Rune in RuneArray do
+  begin
+    RuneBankItem := TRSBankItem.Setup(Rune, 10, False);
+    Bank.WithdrawItem(RuneBankItem, False);
+    WaitEx(500, 450);
+  end;
+
+  WaitEx(325, 250);
+
+  Result := Bank.Close(50);
+end;
+
+procedure TBirdHouseInclude.OnComplete(); override;
+  var
+  i: Int32;
+begin
+  WriteDebug('Completed a birdhouse run');
+
+  ReturnSeers();
+
+  for i := 0 to High(Antiban.Tasks) do
+    Antiban.Tasks[i].Countdown.Resume();
+end;
 
 begin
   GUI.Run();
