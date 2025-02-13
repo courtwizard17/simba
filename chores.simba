@@ -44,16 +44,21 @@ type
     Complete, Skip: Boolean;
   end;
 
-  TFarmRun = record
+  TFarmRunner = record
     PatchesCompleted, PatchesSkipped, MaxRuns, RunsComplete, XPGained, LastXPRead: Int32;
-    DoReport, DoBreak: Boolean;
+    HosidiusFlower, HosidiusHerb, FaladorFlower, FaladorHerb, ArdougneFlower,
+    ArdougneHerb, CatherbyFlower, CatherbyHerb: Boolean;
+    FarmItemAmounts, ReturnItemAmounts: TIntegerArray;
     InactivityTimer, ReadyTimer: TCountdown;
+    ReturnItems, FarmItems: TRSItemArray;
     HarvestQuantities: TIntegerArray;
     LeprechaunItems: TRSItemArray;
     CompostMethod: ECompostMethod;
     Patches: array of TFarmPatch;
+    DoReport, DoBreak: Boolean;
     CurrentPatch: TFarmPatch;
     Runtime: TStopWatch;
+    HerbSeed: TRSItem;
   end;
 
   ERSLogType = (REGULAR_LOGS, OAK_LOGS, WILLOW_LOGS, TEAK_LOGS, MAPLE_LOGS, MAHOGANY_LOGS, YEW_LOGS, MAGIC_LOGS, REDWOOD_LOGS);
@@ -97,6 +102,7 @@ type
 
 var
   BirdHouseRunner: TBirdHouseInclude;
+  FarmRunner: TFarmRunner;
   BHIncludeGUILogType: ERSLogType := ERSLogType.MAPLE_LOGS;
   BHIncludeGUISeed: TRSItem := 'Potato seed';
   BHIncludeGUIRunIntervalMinutes: Int32 := 51;
@@ -1475,7 +1481,7 @@ begin
     Self += Item;
 end;
 
-function TFarmRun.GetNextTime(): Int32;
+function TFarmRunner.GetNextTime(): Int32;
 begin
   Exit(Random(86*ONE_MINUTE, 97*ONE_MINUTE));
 end;
@@ -1492,7 +1498,169 @@ begin
       Inc(Result)
 end;
 
-procedure TFarmRun.AddPatch(Patch: EFarmPatch; Travel: ETravelMethod; Seed: TRSItem);
+function TScriptForm.CreateFarmRunSettings(): TTabSheet;
+  type TScriptForm = TScriptForm
+
+  procedure TScriptForm._FarmSeedChanged(sender: TObject);
+  var
+    seed : TEdit;
+  begin
+    seed := sender;
+    FarmRunner.HerbSeed := seed.getText();
+  end;
+
+var
+  Info: TLabel;
+  MagicSecateursCheckbox, CatherbyHerbCheckbox, HosidiusHerbCheckbox,
+  CatherbyFlowerCheckbox, HosidiusFlowerCheckbox, FaladorHerbCheckbox,
+  FaladorFlowerCheckbox, ArdougneHerbCheckbox, ArdougneFlowerCheckbox,
+  BarbarianDibberCheckbox, FarmRunNowCheckbox: TLabeledCheckBox;
+  CompostInput: TLabeledCombobox;
+  SeedInput: TLabeledEdit;
+begin
+  Self.AddTab('Farm Run Settings');
+  Result := Self.GetTab('Farm Run Settings');
+  Result.SetToolTip('');
+
+  with Info do
+  begin
+    Create(Result);
+    SetLeft(30);
+    SetTop(30);
+    SetHeight(80);
+    SetWidth(600);
+    SetFontSize(10);
+    SetToolTip('');
+    SetCaption('If you have problems with the settings, check the script page for instructions.');
+  end;
+
+  with HosidiusHerbCheckbox do
+  begin
+    SetName('farm_hosidiusherb_checkbox');
+    Create(Result);
+    SetCaption('Hosidius Herb');
+    SetTooltip('');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(130));
+  end;
+
+  with HosidiusFlowerCheckbox do
+  begin
+    Create(Result);
+    SetName('farm_hosidiusflower_checkbox');
+    SetCaption('Hosidius Limpwurt');
+    SetTooltip('');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(110));
+  end;
+
+  with CatherbyHerbCheckbox do
+  begin
+    Create(Result);
+    SetCaption('Catherby Herb');
+    SetName('farm_catherbyherb_checkbox');
+    SetTooltip('');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(90));
+  end;
+
+  with CatherbyFlowerCheckbox do
+  begin
+    Create(Result);
+    SetCaption('Catherby Limpwurt');
+    SetName('farm_catherbyflowercheckbox');
+    SetTooltip('');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(70));
+  end;
+
+  with FaladorHerbCheckbox do
+  begin
+    Create(Result);
+    SetCaption('Falador Herb');
+    SetName('farm_faladorherb_checkbox');
+    SetTooltip('');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(150));
+  end;
+
+  with FaladorFlowerCheckbox do
+  begin
+    Create(Result);
+    SetCaption('Falador Limpwurt');
+    SetName('farm_faladorflower_checkbox');
+    SetTooltip('');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(170));
+  end;
+
+  with ArdougneHerbCheckbox do
+  begin
+    Create(Result);
+    SetCaption('Ardougne Herb');
+    SetName('farm_ardougneherb_checkbox');
+    SetTooltip('');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(190));
+  end;
+
+  with ArdougneFlowerCheckbox do
+  begin
+    Create(Result);
+    SetCaption('Ardougne Limpwurt');
+    SetName('farm_ardougneflower_checkbox');
+    SetTooltip('');
+    SetLeft(TControl.AdjustToDPI(380));
+    SetTop(TControl.AdjustToDPI(210));
+  end;
+
+  with MagicSecateursCheckbox do
+  begin
+    Create(Result);
+    SetCaption('Use Magic Secateurs');
+    SetTooltip('');
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(160));
+  end;
+
+  with BarbarianDibberCheckbox do
+  begin
+    Create(Result);
+    SetCaption('Barbarian Seed Dibber unlocked');
+    SetTooltip('');
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(210));
+  end;
+
+  with FarmRunNowCheckbox do
+  begin
+    Create(Result);
+    SetCaption('Start with a farm run');
+    SetTooltip('');
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(235));
+  end;
+
+  with CompostInput do
+  begin
+    Create(Result);
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(70));
+    AddItemArray(["Ultracompost", "Bottomless Compost"]);
+    SetCaption('Compost:');
+  end;
+
+  with SeedInput do
+  begin
+    Create(Result);
+    SetLeft(TControl.AdjustToDPI(30));
+    SetTop(TControl.AdjustToDPI(110));
+    SetCaption('Herb Seed:');
+    SetText('Toadflax seed');
+  end;
+end;
+
+procedure TFarmRunner.AddPatch(Patch: EFarmPatch; Travel: ETravelMethod; Seed: TRSItem);
 var
   EmptyUpText: TStringArray := ['Herb', 'Flower', 'Bush', 'Allotment', 'Cactus', 'Seaweed patch'];
   HarvestUpText: TStringArray := ['ick', 'ick', 'ick', 'arves', 'ick', 'ick'];
@@ -1772,11 +1940,11 @@ begin
   Exit(EPatchState.FAILED);
 end;
 
-procedure TFarmRun.OnStart(); begin
+procedure TFarmRunner.OnStart(); begin
 
 end;
 
-procedure TFarmRun.OnComplete(); begin
+procedure TFarmRunner.OnComplete(); begin
 
 end;
 
@@ -1792,7 +1960,7 @@ begin
   Result := 'Select' in Self.GetChatTitle();
 end;
 
-procedure TFarmRun.NoteItems();
+procedure TFarmRunner.NoteItems();
 var
   Slots, LepItems: TIntegerArray;
   Count, Slot, i: Int32;
@@ -1872,7 +2040,7 @@ begin
   Inventory.SetSelectedSlot(-1);
 end;
 
-procedure TFarmRun.HandleDeadPatch(); begin
+procedure TFarmRunner.HandleDeadPatch(); begin
   if not RSClient.IsLoggedIn() then
     Exit();
 
@@ -1933,12 +2101,12 @@ procedure TFarmRun.HandleDeadPatch(); begin
   Wait(250, 1000);
 end;
 
-procedure TFarmRun.HandleDiseasedPatch();
+procedure TFarmRunner.HandleDiseasedPatch();
 begin
   Self.CurrentPatch.Skip := True;
 end;
 
-procedure TFarmRun.DropBuckets();
+procedure TFarmRunner.DropBuckets();
 var
   Tmp, Slots: TIntegerArray;
   i : Int32;
@@ -1960,7 +2128,7 @@ begin
   Inventory.ShiftDrop(Slots);
 end;
 
-procedure TFarmRun.CompostPatch();
+procedure TFarmRunner.CompostPatch();
 var
   CompostArray: TStringArray := ['Ultracompost', 'Bottomless compost bucket', ''];
   CompostItem: TRSItem := CompostArray[Self.CompostMethod];
@@ -2045,7 +2213,7 @@ begin
   Self.CurrentPatch.Complete := True;
 end;
 
-procedure TFarmRun.Plant();
+procedure TFarmRunner.Plant();
 var
   CompostArray: TStringArray := ['Ultracompost', 'Bottomless compost bucket', ''];
   CompostItem: TRSItem := compostArray[Self.CompostMethod];
@@ -2163,7 +2331,7 @@ begin
   end;
 end;
 
-procedure TFarmRun.Harvest();
+procedure TFarmRunner.Harvest();
 var
   HarvestTimer: TCountdown;
   Slot: Int32;
@@ -2251,7 +2419,7 @@ begin
   end;
 end;
 
-procedure TFarmRun.TeleportTo(TravelMethod: ETravelMethod; ConfirmPos: Boolean);
+procedure TFarmRunner.TeleportTo(TravelMethod: ETravelMethod; ConfirmPos: Boolean);
 begin
   WriteLn('Teleporting to ' + Self.CurrentPatch.Data.Name);
 
@@ -2282,7 +2450,7 @@ begin
     Self.NoteItems;
 end;
 
-procedure TFarmRun.Report();
+procedure TFarmRunner.Report();
 begin
   WriteLn(SRL.TimeStamp() + ':[' + 'Farm' + ']: ' + 'Thanks to XJ and Student, we finished another farm run!');
 end;
@@ -2296,7 +2464,7 @@ begin
       Exit(True);
 end;
 
-procedure TFarmRun.Init(StartWithRun: Boolean = False);
+procedure TFarmRunner.Init(StartWithRun: Boolean = False);
 var
   RSW: TRSWalker;
   Tmp: TBoxArray;
@@ -2332,7 +2500,7 @@ begin
   SetLength(Self.HarvestQuantities, Length(LeprechaunItems));
 end;
 
-procedure TFarmRun.Run();
+procedure TFarmRunner.Run();
 var
   AntibanMinZ, AntibanMaxZ: Int32;
   State: EPatchState;
@@ -2423,13 +2591,7 @@ begin
   Self.Report();
 end;
 
-procedure TerminateScript(Reason: String); override;
-begin
-  WriteLn(Reason);
-  TerminateScript();
-end;
-
-procedure TFarmRun.DoFarmRun();
+procedure TFarmRunner.DoFarmRun();
 begin
   if not ReadyTimer.IsFinished() then
     Exit();
