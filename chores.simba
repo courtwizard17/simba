@@ -46,8 +46,8 @@ type
 
   TFarmRunner = record
     PatchesCompleted, PatchesSkipped, MaxRuns, RunsComplete, XPGained, LastXPRead: Int32;
-    HosidiusFlower, HosidiusHerb, FaladorFlower, FaladorHerb, ArdougneFlower,
-    ArdougneHerb, CatherbyFlower, CatherbyHerb: Boolean;
+    HosidiusFlower, HosidiusHerb, FaladorFlower, FaladorHerb, ArdougneFlower, BDibber,
+    ArdougneHerb, CatherbyFlower, CatherbyHerb, MSecs, StartWithRun: Boolean;
     FarmItemAmounts, ReturnItemAmounts: TIntegerArray;
     InactivityTimer, ReadyTimer: TCountdown;
     ReturnItems, FarmItems: TRSItemArray;
@@ -1244,21 +1244,37 @@ begin
     key := #0;
 end;
 
+procedure TScriptForm.OnCheckBoxChanged(sender: TObject);
+var
+  checkBox : TCheckBox;
+  isChecked : Boolean;
+begin
+  checkBox := sender;
+  isChecked := checkBox.IsChecked();
+  WriteLn(Checkbox.getName);
+
+  case checkBox.getName() of
+    'bh_extraclockworkcb_checkbox' : BirdHouseRunner.NeedClockworks := isChecked;
+    'bh_bestlogcb_checkbox': BirdHouseRunner.AlwaysUseBestLog := isChecked;
+
+    'farm_hosidiusherb_checkbox': FarmRunner.HosidiusHerb := isChecked;
+    'farm_hosidiusflower_checkbox': FarmRunner.HosidiusFlower := isChecked;
+    'farm_catherbyherb_checkbox': FarmRunner.CatherbyHerb := isChecked;
+    'farm_catherbyflower_checkbox': FarmRunner.CatherbyFlower := isChecked;
+    'farm_faladorherb_checkbox': FarmRunner.FaladorHerb := isChecked;
+    'farm_faladorflower_checkbox': FarmRunner.FaladorFlower := isChecked;
+    'farm_ardougneherb_checkbox': FarmRunner.ArdougneHerb := isChecked;
+    'farm_ardougneflower_checkbox': FarmRunner.ArdougneFlower := isChecked;
+    'farm_magicsecateurs_checkbox': FarmRunner.MSecs := isChecked;
+    'farm_barbariandibber_checkbox': FarmRunner.BDibber := isChecked;
+    'farm_startwithrun_checkbox': FarmRunner.StartWithRun := isChecked;
+  else
+    WriteLn('Checkbox is configured wrong!');
+  end;
+end;
+
 function TScriptForm.CreateBirdhouseRunSettings(): TTabSheet;
   type TScriptForm = TScriptForm;
-
-  procedure TScriptForm._OnCheckBoxChanged(sender: TObject);
-  var
-    checkBox : TCheckBox;
-    isChecked : Boolean;
-  begin
-    checkBox := sender;
-    isChecked := checkBox.IsChecked();
-    case checkBox.getName() of
-      'bh_extraclockworkcb_checkbox' : BirdHouseRunner.NeedClockworks := isChecked;
-      'bh_bestlogcb_checkbox': BirdHouseRunner.AlwaysUseBestLog := isChecked;
-    end;
-  end;
 
   procedure TScriptForm._SeedChanged(sender: TObject);
   var
@@ -1509,6 +1525,14 @@ function TScriptForm.CreateFarmRunSettings(): TTabSheet;
     FarmRunner.HerbSeed := seed.getText();
   end;
 
+  procedure TScriptForm._CompostTypeChanged(sender: TObject);
+  var
+    combobox: TComboBox;
+  begin
+    combobox := sender;
+    FarmRunner.CompostMethod := ECompostMethod(comboBox.getItemIndex());
+  end;
+
 var
   Info: TLabel;
   MagicSecateursCheckbox, CatherbyHerbCheckbox, HosidiusHerbCheckbox,
@@ -1520,6 +1544,7 @@ var
 begin
   Self.AddTab('Farm Run Settings');
   Result := Self.GetTab('Farm Run Settings');
+
   Result.SetToolTip('');
 
   with Info do
@@ -1536,109 +1561,123 @@ begin
 
   with HosidiusHerbCheckbox do
   begin
-    SetName('farm_hosidiusherb_checkbox');
     Create(Result);
+    SetName('farm_hosidiusherb');
     SetCaption('Hosidius Herb');
     SetTooltip('');
     SetLeft(TControl.AdjustToDPI(380));
     SetTop(TControl.AdjustToDPI(130));
+    CheckBox.setOnChange(@Self.OnCheckBoxChanged);
   end;
 
   with HosidiusFlowerCheckbox do
   begin
     Create(Result);
-    SetName('farm_hosidiusflower_checkbox');
+    SetName('farm_hosidiusflower');
     SetCaption('Hosidius Limpwurt');
     SetTooltip('');
     SetLeft(TControl.AdjustToDPI(380));
     SetTop(TControl.AdjustToDPI(110));
+    CheckBox.setOnChange(@Self.OnCheckBoxChanged);
   end;
 
   with CatherbyHerbCheckbox do
   begin
     Create(Result);
     SetCaption('Catherby Herb');
-    SetName('farm_catherbyherb_checkbox');
+    SetName('farm_catherbyherb');
     SetTooltip('');
     SetLeft(TControl.AdjustToDPI(380));
     SetTop(TControl.AdjustToDPI(90));
+    CheckBox.setOnChange(@Self.OnCheckBoxChanged);
   end;
 
   with CatherbyFlowerCheckbox do
   begin
     Create(Result);
     SetCaption('Catherby Limpwurt');
-    SetName('farm_catherbyflowercheckbox');
+    SetName('farm_catherbyflower');
     SetTooltip('');
     SetLeft(TControl.AdjustToDPI(380));
     SetTop(TControl.AdjustToDPI(70));
+    CheckBox.setOnChange(@Self.OnCheckBoxChanged);
   end;
 
   with FaladorHerbCheckbox do
   begin
     Create(Result);
     SetCaption('Falador Herb');
-    SetName('farm_faladorherb_checkbox');
+    SetName('farm_faladorherb');
     SetTooltip('');
     SetLeft(TControl.AdjustToDPI(380));
     SetTop(TControl.AdjustToDPI(150));
+    CheckBox.setOnChange(@Self.OnCheckBoxChanged);
   end;
 
   with FaladorFlowerCheckbox do
   begin
     Create(Result);
     SetCaption('Falador Limpwurt');
-    SetName('farm_faladorflower_checkbox');
+    SetName('farm_faladorflower');
     SetTooltip('');
     SetLeft(TControl.AdjustToDPI(380));
     SetTop(TControl.AdjustToDPI(170));
+    CheckBox.setOnChange(@Self.OnCheckBoxChanged);
   end;
 
   with ArdougneHerbCheckbox do
   begin
     Create(Result);
     SetCaption('Ardougne Herb');
-    SetName('farm_ardougneherb_checkbox');
+    SetName('farm_ardougneherb');
     SetTooltip('');
     SetLeft(TControl.AdjustToDPI(380));
     SetTop(TControl.AdjustToDPI(190));
+    CheckBox.setOnChange(@Self.OnCheckBoxChanged);
   end;
 
   with ArdougneFlowerCheckbox do
   begin
     Create(Result);
     SetCaption('Ardougne Limpwurt');
-    SetName('farm_ardougneflower_checkbox');
+    SetName('farm_ardougneflower');
     SetTooltip('');
     SetLeft(TControl.AdjustToDPI(380));
     SetTop(TControl.AdjustToDPI(210));
+    CheckBox.setOnChange(@Self.OnCheckBoxChanged);
   end;
 
   with MagicSecateursCheckbox do
   begin
     Create(Result);
+    SetName('farm_magicsecateurs');
     SetCaption('Use Magic Secateurs');
     SetTooltip('');
     SetLeft(TControl.AdjustToDPI(30));
     SetTop(TControl.AdjustToDPI(160));
+    CheckBox.setOnChange(@Self.OnCheckBoxChanged);
   end;
 
   with BarbarianDibberCheckbox do
   begin
     Create(Result);
+    SetName('farm_barbariandibber');
     SetCaption('Barbarian Seed Dibber unlocked');
     SetTooltip('');
     SetLeft(TControl.AdjustToDPI(30));
     SetTop(TControl.AdjustToDPI(210));
+    CheckBox.setOnChange(@Self.OnCheckBoxChanged);
   end;
 
   with FarmRunNowCheckbox do
   begin
     Create(Result);
     SetCaption('Start with a farm run');
+    SetName('farm_startwithrun');
     SetTooltip('');
     SetLeft(TControl.AdjustToDPI(30));
     SetTop(TControl.AdjustToDPI(235));
+    CheckBox.setOnChange(@Self.OnCheckBoxChanged);
   end;
 
   with CompostInput do
@@ -1648,6 +1687,7 @@ begin
     SetTop(TControl.AdjustToDPI(70));
     AddItemArray(["Ultracompost", "Bottomless Compost"]);
     SetCaption('Compost:');
+    Combobox.SetOnChange(@Self._CompostTypeChanged);
   end;
 
   with SeedInput do
@@ -1657,6 +1697,8 @@ begin
     SetTop(TControl.AdjustToDPI(110));
     SetCaption('Herb Seed:');
     SetText('Toadflax seed');
+    Edit.setOnChange(@Self._FarmSeedChanged);
+    Edit.setOnKeyPress(@Edit.CJTextField);
   end;
 end;
 
