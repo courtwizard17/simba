@@ -4,17 +4,9 @@ program woodcutter;
 
 type
   ETreeType = (OAK_TREE, WILLOW_TREE, MAPLE_TREE, YEW_TREE, MAGIC_TREE);
-  EState = (PRINT_PROGRESS, TRAVEL_BANK, TRAVEL_ZONE, DEPOSIT_LOGS, BIRDHOUSE_RUN, RESET_TIMER,
-            CLOSE_INTERFACE, HANDLE_LOGIN, RETURN_SEERS, TERMINATE_SCRIPT, DO_ANTIBAN, CHOP,
-            PICK_NEST);
-
-  TWoodcutter = record
-    Trees: Array of TRSObjectV2;
-    ChoppingTime: Int32;
-    Booth: TRSObjectV2;
-    Zone, Bank: TBox;
-    Log: TRSItem;
-  end;
+  EState = (PRINT_PROGRESS, TRAVEL_BANK, TRAVEL_ZONE, DEPOSIT_LOGS, BIRDHOUSE_RUN,
+            RESET_TIMER, CLOSE_INTERFACE, HANDLE_LOGIN, RETURN_SEERS, DO_ANTIBAN,
+            CHOP_TREE, PICK_NEST, CHOP_ROOTS);
 
   TWoodcutterGUI = record (TScriptForm)
     BlockInputCheckbox, BirdhouseCheckbox: TLabeledCheckBox;
@@ -23,12 +15,16 @@ type
   end;
 
 var
-  BreakFor, BreakAfter, StartXP, CurrentXP, GainedXP, LogsBanked: Int32;
+  BreakFor, BreakAfter, StartXP, CurrentXP, GainedXP, Logs: Int32;
   InactivityTimer, ReportTimer: TStopwatch;
   BlockInput, DoBirdhouseRuns: Boolean;
+  Trees: Array of TRSObjectV2;
   GUI: TWoodcutterGUI;
-  Bot: TWoodcutter;
+  ChoppingTime: Int32;
+  Booth: TRSObjectV2;
+  Zone, Merc: TBox;
   Tree: ETreeType;
+  Log: TRSItem;
 
 procedure WriteDebug(Message: String);
 begin
@@ -112,6 +108,11 @@ begin
   T := Task;
 end;
 
+function ShouldStop(): Boolean;
+begin
+  Result := InactivityTimer.ElapsedTime() > 300000;
+end;
+
 procedure ResumeTimer(Task: PBreakTask);
 var
   T: PBreakTask;
@@ -136,6 +137,52 @@ begin
 
   Antiban.OnStartBreak := @PauseTimer;
   Antiban.OnFinishBreak := @ResumeTimer;
+end;
+
+function GetTilesNearby(): TPointArray;
+var
+  Pos: TPoint;
+  i, j: Int32;
+begin
+  Pos := Map.Position();
+  i := Pos.X - 12;
+  j := Pos.Y - 12;
+
+  while i <= Pos.X + 12 do
+  begin
+
+    while j < Pos.Y + 12 do
+    begin
+      Result += [i, j];
+      Inc(j, 4);
+    end;
+
+    Result += [i, j];
+    Inc(i, 4);
+    j := Pos.Y - 12;
+  end;
+
+  Result.Sort(Map.Position());
+end;
+
+function CheckRectColors(Rect: TRectangle; Color: TCTS2Color; Amount: Int32): Boolean;
+var
+  TPA: TPointArray;
+  Bounds: TBox;
+  Pt: TPoint;
+begin
+  Bounds := Rect.Bounds();
+  Bounds.LimitTo(Mainscreen.Bounds);
+
+  if SRL.FindColors(TPA, Color, Bounds) < Amount then
+    Exit(False);
+
+  for Pt in TPA do
+    if not SRL.PointInRect(Pt, Rect) then
+      TPA.Remove(Pt);
+
+  WriteLn('length in rect: ', Length(TPA));
+  Result := Length(TPA) > Amount;
 end;
 
 function HasGainedXP(): Boolean;
@@ -169,10 +216,56 @@ begin
   WriteDebug('Stopped animating.');
 end;
 
+function ClickHelper(UpTexts: TStringArray): Boolean;
+begin
+  if Mainscreen.IsUpText(UpTexts, 175) then
+  begin
+    Mouse.Click(MOUSE_LEFT);
+    Exit(True);
+  end else
+    ChooseOption.Open();
+
+  if ChooseOption.HasOption(UpTexts) then
+  begin
+    ChooseOption.Select(UpTexts);
+    Exit(True);
+  end;
+end;
+
+function FindRoots(): TPoint;
+var
+  Tiles: TPointArray;
+  Rect: TRectangle;
+  Tile: TPoint;
+begin
+  Tiles := GetTilesNearby();
+
+  for Tile in Tiles do
+  begin
+    Rect := Map.GetTileMS(Tile);
+
+    if CheckRectColors(Rect, CTS2(7120461, 21, 0.02, 0.68), Mainscreen.NormalizeDistance(5)) then
+    begin
+      WriteDebug('Anima roots found.');
+      RSClient.Image.DrawRect(Rect, clRed);
+      Exit(Rect.Mean());
+    end;
+
+    if CheckRectColors(Rect, CTS2(2833216, 10, 0.02, 0.33), Mainscreen.NormalizeDistance(50)) then
+    begin
+      WriteDebug('Normal roots found.');
+      RSClient.Image.DrawRect(Rect, clRed);
+      RSClient.Image.DrawCrosshairs(Rect.Mean(), 4, clBlue);
+      Exit(Rect.Mean());
+    end;
+  end;
+end;
+
 function GetChoppingAreaMMDots(DotType: ERSMinimapDot): TPointArray;
 var
   Dots: TPointArray;
   Dot: TPoint;
+  Ex: Int32;
 begin
   Dots := Minimap.GetDots(DotType);
 
@@ -181,13 +274,17 @@ begin
 
   Dots.Sort(Minimap.Center);
 
+  if DotType = ERSMinimapDot.ITEM then
+    Ex := -2
+  else
+    Ex := 4;
+
   for Dot in Dots do
   begin
-    if Bot.Zone.Expand(4).Contains(Map.Walker.MMToMap(Map.Position(), Dot)) then
+    if Zone.Expand(Ex).Contains(Map.Walker.MMToMap(Map.Position(), Dot)) then
     begin
       Result += Dot;
       RSClient.Image.DrawCrosshairs(Dot, 5, clPink);
-      Sleep(50);
     end;
   end;
 end;
@@ -249,22 +346,6 @@ begin
       Exit(True);
 end;
 
-function ClickHelper(UpTexts: TStringArray): Boolean;
-begin
-  if Mainscreen.IsUpText(UpTexts, 175) then
-  begin
-    Mouse.Click(MOUSE_LEFT);
-    Exit(True);
-  end else
-    ChooseOption.Open();
-
-  if ChooseOption.HasOption(UpTexts) then
-  begin
-    ChooseOption.Select(UpTexts);
-    Exit(True);
-  end;
-end;
-
 procedure PickNest();
 var
   EmptySlots: Int32;
@@ -295,15 +376,27 @@ end;
 function Fantiban(): Boolean;
 begin
   Antiban.DoAntiban(False, False);
-  Result := (not IsAnimating() or Inventory.IsFull() or HasNest());
+
+  if Inventory.IsFull() then
+    Exit(True);
+
+  if HasNest() then
+    Exit(True);
+
+  if FindRoots() <> Point(0, 0) then
+    Exit(True);
+
+  Result := (not IsAnimating());
 end;
 
 procedure WaitChopping();
 var
-  RandomizedWaitTime: Int32;
+  Rand, Time: Int32;
 begin
-  RandomizedWaitTime := Floor(SRL.SkewedRand(Bot.ChoppingTime, Bot.ChoppingTime*0.7, Bot.ChoppingTime*1.3));
-  WaitUntil(Fantiban(), 1250, RandomizedWaitTime);
+  Time := ChoppingTime;
+  Rand := Floor(SRL.SkewedRand(Time, Time * 0.7, Time * 1.3));
+
+  WaitUntil(Fantiban(), 750, Rand);
 end;
 
 procedure PrintProgress();
@@ -322,9 +415,9 @@ end;
 
 procedure SetupCatherbyBank();
 begin
-  Bot.Bank := [7128, 36666, 7152, 36678];
+  Merc := [7128, 36666, 7152, 36678];
 
-  with Bot.Booth do
+  with Booth do
   begin
     Size := Vec3(1, 1, 8);
     SetupCoordinates([[7140, 36662]]);
@@ -337,9 +430,9 @@ end;
 
 procedure SetupSeersBank();
 begin
-  Bot.Bank := [6788, 36458, 6824, 36474];
+  Merc := [6788, 36458, 6824, 36474];
 
-  with Bot.Booth do
+  with Booth do
   begin
     Size := Vec3(1, 1, 8);
     SetupCoordinates([[6800, 36454]]);
@@ -355,15 +448,15 @@ var
   Yews: TPointArray := [[6944, 36718], [6948, 36702], [6936, 36694], [6928, 36706], [6968, 36718]];
   i: Int32;
 begin
-  Bot.Zone := [6912, 36686, 6964, 36730];
-  Bot.ChoppingTime := 95000;
-  Bot.Log := 'Yew logs';
+  Zone := [6912, 36686, 6964, 36730];
+  ChoppingTime := 95000;
+  Log := 'Yew logs';
 
   SetupCatherbyBank();
-  SetLength(Bot.Trees, Length(Yews));
+  SetLength(Trees, Length(Yews));
 
-  for i := 0 to Length(Bot.Trees) - 1 do
-    with Bot.Trees[i] do
+  for i := 0 to Length(Trees) - 1 do
+    with Trees[i] do
     begin
       Size := Vec3(2.5, 2.5, 8);
       SetupCoordinates([Yews[i]]);
@@ -379,15 +472,15 @@ var
   Willows: TPointArray := [[6742, 36388], [6754, 36396], [6750, 36384]];
   i: Int32;
 begin
-  Bot.Zone := Box([6748, 36390], 25, 25);
-  Bot.ChoppingTime := 45000;
-  Bot.Log := 'Willow logs';
+  Zone := Box([6748, 36390], 25, 25);
+  ChoppingTime := 45000;
+  Log := 'Willow logs';
 
   SetupSeersBank();
-  SetLength(Bot.Trees, Length(Willows));
+  SetLength(Trees, Length(Willows));
 
-  for i := 0 to Length(Bot.Trees) - 1 do
-    with Bot.Trees[i] do
+  for i := 0 to Length(Trees) - 1 do
+    with Trees[i] do
     begin
       Size := Vec3(2, 2, 6);
       SetupCoordinates([Willows[i]]);
@@ -403,15 +496,15 @@ var
   Oaks: TPointArray := [[6784, 36502], [6788, 36514]];
   i: Int32;
 begin
-  Bot.Zone := Box([6780, 36510], 15, 15);
-  Bot.ChoppingTime := 35000;
-  Bot.Log := 'Oak logs';
+  Zone := Box([6780, 36510], 15, 15);
+  ChoppingTime := 35000;
+  Log := 'Oak logs';
 
   SetupSeersBank();
-  SetLength(Bot.Trees, Length(Oaks));
+  SetLength(Trees, Length(Oaks));
 
-  for i := 0 to Length(Bot.Trees) - 1 do
-    with Bot.Trees[i] do
+  for i := 0 to Length(Trees) - 1 do
+    with Trees[i] do
     begin
       Size := Vec3(2, 2, 6);
       SetupCoordinates([Oaks[i]]);
@@ -427,15 +520,15 @@ var
   Magics: TPointArray := [[6700, 36838], [6728, 36838], [6700, 36846], [6728, 36846]];
   i: Int32;
 begin
-  Bot.Zone := [6700, 36826, 6736, 36846];
-  Bot.ChoppingTime := 95000;
-  Bot.Log := 'Magic logs';
+  Zone := [6700, 36826, 6736, 36846];
+  ChoppingTime := 95000;
+  Log := 'Magic logs';
 
   SetupCatherbyBank();
-  SetLength(Bot.Trees, Length(Magics));
+  SetLength(Trees, Length(Magics));
 
-  for i := 0 to Length(Bot.Trees) - 1 do
-    with Bot.Trees[i] do
+  for i := 0 to Length(Trees) - 1 do
+    with Trees[i] do
     begin
       Size := Vec3(2, 2, 8);
       SetupCoordinates([Magics[i]]);
@@ -451,15 +544,15 @@ var
   Maples: TPointArray := [[6790, 36424], [6814, 36424], [6826, 36424], [6834, 36432]];
   i: Int32;
 begin
-  Bot.Zone := [6780, 36414, 6840, 36438];
-  Bot.ChoppingTime := 45000;
-  Bot.Log := 'Maple logs';
+  Zone := [6780, 36414, 6840, 36438];
+  ChoppingTime := 45000;
+  Log := 'Maple logs';
 
   SetupSeersBank();
-  SetLength(Bot.Trees, Length(Maples));
+  SetLength(Trees, Length(Maples));
 
-  for i := 0 to Length(Bot.Trees) - 1 do
-    with Bot.Trees[i] do
+  for i := 0 to Length(Trees) - 1 do
+    with Trees[i] do
     begin
       Size := Vec3(1.6, 1.6, 5);
       SetupCoordinates([Maples[i]]);
@@ -498,8 +591,8 @@ begin
   if Options.GetNPCAttackOption() <> ERSAttackOption.HIDDEN then
     Options.SetNPCAttackOption(ERSAttackOption.HIDDEN);
 
-  if not InRange(Options.GetZoomLevel(), 12, 18) then
-    Options.SetZoomLevel(Random(12, 18));
+  if not InRange(Options.GetZoomLevel(), 25, 35) then
+    Options.SetZoomLevel(Random(25, 35));
 
   Mouse.Speed := SRL.NormalRange(25, 35);
   Map.SetupChunks([[[41, 55, 45, 52], [0]], [[56, 61, 60, 57], [0]]]);
@@ -547,12 +640,8 @@ begin
 end;
 
 
-
 function GetState(): EState;
 begin
-  if InactivityTimer.ElapsedTime() > 300000 then
-    Exit(TERMINATE_SCRIPT);
-
   if not RSClient.IsLoggedIn() then
     Exit(HANDLE_LOGIN);
 
@@ -577,28 +666,48 @@ begin
 
   if Inventory.IsFull() then
   begin
-    if Map.Position().InBox(Bot.Bank) then
+    if Map.Position().InBox(Merc) then
       Exit(DEPOSIT_LOGS);
 
     Exit(TRAVEL_BANK);
   end;
 
-  if Map.Position().InBox(Bot.Zone) then
+  if Map.Position().InBox(Zone) then
   begin
     if HasNest() then
       Exit(PICK_NEST);
 
-    Exit(CHOP);
+    if FindRoots() <> Point(0, 0) then
+      Exit(CHOP_ROOTS);
+
+    Exit(CHOP_TREE);
   end;
 
   Exit(TRAVEL_ZONE);
+end;
+
+procedure ChopRoots();
+var
+  Pt: TPoint;
+begin
+  Pt := FindRoots();
+
+  if Pt = Point(0, 0) then
+    Exit()
+  else
+    Mouse.HumanMove(Pt);
+
+  if not ClickHelper(['oot']) then
+    Exit();
+
+  WaitUntil(not IsAnimating(), 500, 4500);
 end;
 
 procedure ChopTree();
 var
   Tree: TRSObjectV2;
 begin
-  for Tree in Bot.Trees do
+  for Tree in Trees do
   begin
     if not Tree.IsVisible() then
       Continue()
@@ -610,7 +719,6 @@ begin
       RSClient.Image.Clear();
 
       WaitEx(2500, 2000);
-
       WaitChopping();
       Exit();
     end;
@@ -619,7 +727,7 @@ end;
 
 procedure DepositLogs();
 begin
-  if Bot.Booth.Click() then
+  if Booth.Click() then
     WaitUntil(Bank.IsOpen(), 500, 15000)
   else
     Antiban.RandomRotate();
@@ -627,7 +735,7 @@ begin
   if not Bank.IsOpen() then
     Exit();
 
-  LogsBanked += Inventory.CountItem(Bot.Log);
+  Logs += Inventory.CountItem(Log);
 
   if Bank.DepositRandomItems(['Steel axe', 'Mithril axe', 'Rune axe', 'Adamant axe', 'Dragon axe']) then
     WaitEx(1600, 1200);
@@ -635,7 +743,7 @@ begin
   if Bank.Close(50) then
     WaitEx(1575, 1225);
 
-  WriteDebug(ToStr('Logs banked: ', LogsBanked));
+  WriteDebug(ToStr('Logs banked: ', Logs));
 end;
 
 procedure Loop();
@@ -648,7 +756,6 @@ begin
   case State of
     BIRDHOUSE_RUN: BirdhouseRunner.DoBirdHouseRun();
 
-    TERMINATE_SCRIPT: TerminateScript();
     CLOSE_INTERFACE: RSInterface.Close(50);
     PRINT_PROGRESS: PrintProgress();
     RESET_TIMER: InactivityTimer.Reset();
@@ -656,11 +763,14 @@ begin
     DO_ANTIBAN: Antiban.DoAntiban();
     HANDLE_LOGIN: Login.LoginPlayer();
 
-    PICK_NEST: PickNest();
+    TRAVEL_ZONE: Map.Walker.WebWalk(Zone.Center());
+    TRAVEL_BANK: Map.Walker.WebWalk(Merc.Center());
+
     DEPOSIT_LOGS: DepositLogs();
-    TRAVEL_ZONE: Map.Walker.WebWalk(Bot.Zone.Center());
-    TRAVEL_BANK: Map.Walker.WebWalk(Bot.Bank.Center());
-    CHOP: ChopTree();
+
+    PICK_NEST: PickNest();
+    CHOP_TREE: ChopTree();
+    CHOP_ROOTS: ChopRoots();
   end;
 
   WaitEx(175, 170);
@@ -683,7 +793,7 @@ begin
 
   while not BankTimeOut.IsFinished() and not Bank.IsOpen() do
   begin
-    if Bot.Booth.WalkClick() then
+    if Booth.WalkClick() then
       WaitUntil(Bank.IsOpen(), 250, 8000);
   end;
 
@@ -734,5 +844,5 @@ begin
 
   repeat
     Loop();
-  until False;
+  until ShouldStop();
 end.
