@@ -65,7 +65,7 @@ begin
     SetLeft(TControl.AdjustToDPI(470));
     SetTop(TControl.AdjustToDPI(160));
     AddItemArray(["Stew", "Lobster", "Shark", "Manta ray",
-                  "Bass", "Cooked karambwan"]);
+                  "Bass", "Cooked karambwan", "Tuna"]);
     SetItemIndex(4);
   end;
 
@@ -293,6 +293,11 @@ begin
     WaitEx(1500, 1495);
 end;
 
+function ShouldStop(): Boolean;
+begin
+  Result := InactivityTimer.ElapsedTime() > 300000;
+end;
+
 procedure EatFood();
 begin
   if not Inventory.ClickItem(Food, 'Eat') then
@@ -316,7 +321,7 @@ begin
   Mouse.Click(MOUSE_LEFT);
 
   if Mainscreen.DidRedClick() then
-    WaitUntil(Experience < XPBar.Read(), 250, SRL.NormalRange(4500, 4750));
+    WaitUntil(Experience < XPBar.Read(), 500, SRL.NormalRange(2750, 6750));
 end;
 
 procedure Pickpocket();
@@ -379,10 +384,8 @@ procedure Loop();
 var
   State: EState;
 begin
-  if InactivityTimer.ElapsedTime() > 300000 then
-    TerminateScript('No XP gained in 5 minutes.');
-
-  Antiban.DoAntiban();
+  if Antiban.DoAntiban() then
+    Exit();
 
   if not RSClient.IsLoggedIn() then
     Login.LoginPlayer();
@@ -427,9 +430,6 @@ begin
 
   for i := 0 to High(Antiban.Tasks) do
     Antiban.Tasks[i].Countdown.Pause();
-
-  if Inventory.ContainsItem(Food) then
-    Inventory.ClickItem(Food);
 
   BankTimeout.Init(55000);
 
@@ -482,5 +482,5 @@ begin
 
   repeat
     Loop();
-  until False;
+  until ShouldStop();
 end.
