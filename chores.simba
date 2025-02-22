@@ -1720,7 +1720,7 @@ begin
   Self.Patches += [Empty, Planted, Harvest, Travel, Data, TPA, SearchBox, Seed];
 end;
 
-function TFarmRunner.CanDoAFarmRun(): Boolean;
+function TFarmRunner.CanDoFarmRun(): Boolean;
 begin
   Result := Self.ReadyTimer.IsFinished();
 end;
