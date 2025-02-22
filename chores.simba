@@ -48,15 +48,14 @@ type
     PatchesCompleted, PatchesSkipped, MaxRuns, RunsComplete, XPGained, LastXPRead: Int32;
     HosidiusFlower, HosidiusHerb, FaladorFlower, FaladorHerb, ArdougneFlower, BDibber,
     ArdougneHerb, CatherbyFlower, CatherbyHerb, MSecs, StartWithRun: Boolean;
-    FarmItemAmounts, ReturnItemAmounts: TIntegerArray;
     InactivityTimer, ReadyTimer: TCountdown;
-    ReturnItems, FarmItems: TRSItemArray;
     HarvestQuantities: TIntegerArray;
+    FarmItemAmounts: TIntegerArray;
     LeprechaunItems: TRSItemArray;
     CompostMethod: ECompostMethod;
     Patches: array of TFarmPatch;
-    DoReport, DoBreak: Boolean;
     CurrentPatch: TFarmPatch;
+    FarmItems: TRSItemArray;
     Runtime: TStopWatch;
     HerbSeed: TRSItem;
   end;
@@ -130,6 +129,11 @@ end;
 procedure TBirdHouseInclude.DebugLn(message : string);
 begin
   WriteLn(SRL.TimeStamp() + ':[' + 'Birdhouses' + ']: ' + message);
+end;
+
+procedure TFarmRunner.DebugLn(message : string);
+begin
+  WriteLn(SRL.TimeStamp() + ':[' + 'Farms' + ']: ' + message);
 end;
 
 function TBirdHouseInclude.GetBirdHouseSpace() : TPointArray;
@@ -346,7 +350,7 @@ procedure TBirdHouseInclude.Init();
 var
   VerdValleyShroom, MushMeadowShroom, HouseHillShroom : TMushroom;
 begin
-  Self.DebugLn('Initializing birdhouse runner');
+  Self.DebugLn('Init');
 
   if Self.IsDisabled then
     Exit;
@@ -404,10 +408,7 @@ begin
 
 
   if Self.ScriptIntervalTimer.Length < 100 then
-  begin
     Self.ScriptIntervalTimer.Init(Self.GetNewRunInterval());
-    Self.DebugLn("Started timer from Init");
-  end;
 end;
 
 function TBirdHouseInclude.GetClosestObject(evalObjects : TRSObjectArray; position : TPoint ) : TRSObject;
@@ -1251,7 +1252,6 @@ var
 begin
   checkBox := sender;
   isChecked := checkBox.IsChecked();
-  WriteLn(Checkbox.getName);
 
   case checkBox.getName() of
     'bh_extraclockworkcb_checkbox' : BirdHouseRunner.NeedClockworks := isChecked;
@@ -1269,7 +1269,7 @@ begin
     'farm_barbariandibber_checkbox': FarmRunner.BDibber := isChecked;
     'farm_startwithrun_checkbox': FarmRunner.StartWithRun := isChecked;
   else
-    WriteLn('Checkbox is configured wrong!');
+    WriteLn('A checkbox is configured wrong!');
   end;
 end;
 
@@ -1515,7 +1515,7 @@ begin
 end;
 
 function TScriptForm.CreateFarmRunSettings(): TTabSheet;
-  type TScriptForm = TScriptForm
+  type TScriptForm = TScriptForm;
 
   procedure TScriptForm._FarmSeedChanged(sender: TObject);
   var
@@ -1665,7 +1665,7 @@ begin
     SetCaption('Barbarian Seed Dibber unlocked');
     SetTooltip('');
     SetLeft(TControl.AdjustToDPI(30));
-    SetTop(TControl.AdjustToDPI(210));
+    SetTop(TControl.AdjustToDPI(185));
     CheckBox.setOnChange(@Self.OnCheckBoxChanged);
   end;
 
@@ -1676,7 +1676,7 @@ begin
     SetName('farm_startwithrun');
     SetTooltip('');
     SetLeft(TControl.AdjustToDPI(30));
-    SetTop(TControl.AdjustToDPI(235));
+    SetTop(TControl.AdjustToDPI(210));
     CheckBox.setOnChange(@Self.OnCheckBoxChanged);
   end;
 
@@ -1697,6 +1697,7 @@ begin
     SetTop(TControl.AdjustToDPI(110));
     SetCaption('Herb Seed:');
     SetText('Toadflax seed');
+    FarmRunner.HerbSeed := 'Toadflax seed';
     Edit.setOnChange(@Self._FarmSeedChanged);
     Edit.setOnKeyPress(@Edit.CJTextField);
   end;
@@ -1717,6 +1718,11 @@ begin
     Planted := 'Herb';
 
   Self.Patches += [Empty, Planted, Harvest, Travel, Data, TPA, SearchBox, Seed];
+end;
+
+function TFarmRunner.CanDoAFarmRun(): Boolean;
+begin
+  Result := Self.ReadyTimer.IsFinished();
 end;
 
 function TFarmPatch.Find(Retry: Boolean = True): Boolean;
@@ -1982,11 +1988,13 @@ begin
   Exit(EPatchState.FAILED);
 end;
 
-procedure TFarmRunner.OnStart(); begin
+procedure TFarmRunner.OnStart();
+begin
 
 end;
 
-procedure TFarmRunner.OnComplete(); begin
+procedure TFarmRunner.OnComplete();
+begin
 
 end;
 
@@ -2506,23 +2514,123 @@ begin
       Exit(True);
 end;
 
-procedure TFarmRunner.Init(StartWithRun: Boolean = False);
+procedure TFarmRunner.Init();
+const
+  Runes: TRSItemArray := ['Air rune', 'Water rune', 'Earth rune', 'Law rune'];
 var
+  i, u, h, t: Int32;
   RSW: TRSWalker;
   Tmp: TBoxArray;
-  i: Int32;
+  Item: TRSItem;
 begin
-  if not RSClient.IsLoggedIn() then
-    Login.LoginPlayer();
-
-  for i := 0 to High(Self.Patches) do
-    if not (Self.Patches[i].Data.MapCoords in Tmp) then
-      Tmp += Self.Patches[i].Data.MapCoords;
-
   LeprechaunItems := ['Guam leaf', 'Marrentill', 'Tarromin', 'Harralander', 'Ranarr weed', 'Toadflax',
                       'Irit leaf', 'Avantoe', 'Kwuarm', 'Snapdragon', 'Cadantine', 'Lantadyme',
                       'Dwarf weed', 'Torstol', 'Limpwurt root', 'Potato', 'Onion', 'Cabbage', 'Tomato', 'Sweetcorn',
                       'Strawberry', 'Watermelon', 'Snape grass', 'White berries', 'Potato cactus', 'Cactus spine', 'Giant seaweed'];
+
+  Self.InactivityTimer.Init(6 * ONE_MINUTE);
+  SetLength(Self.HarvestQuantities, Length(LeprechaunItems));
+
+  t := Random(75, 200);
+
+  for Item in Runes do
+  begin
+    Self.FarmItems += Item;
+    Self.FarmItemAmounts += t;
+  end;
+
+  if Self.HosidiusHerb then
+  begin
+    Self.AddPatch(EFarmPatch.HOSIDIOUS_HERB, ETravelMethod.HOUSE_TELEPORT, Self.HerbSeed);
+    Inc(h);
+  end;
+
+  if Self.ArdougneHerb then
+  begin
+    Self.AddPatch(EFarmPatch.ARDY_HERB, ETravelMethod.ARDOUGNE_TELEPORT, Self.HerbSeed);
+    Inc(h);
+  end;
+
+  if Self.FaladorHerb then
+  begin
+    Self.AddPatch(EFarmPatch.FALLY_HERB, ETravelMethod.FALADOR_TELEPORT, Self.HerbSeed);
+    Inc(h);
+  end;
+
+  if Self.CatherbyHerb then
+  begin
+    Self.AddPatch(EFarmPatch.CATHERBY_HERB, ETravelMethod.CAMELOT_TELEPORT, Self.HerbSeed);
+    Inc(h);
+  end;
+
+  if Self.HosidiusFlower then
+  begin
+    Self.AddPatch(EFarmPatch.HOSIDIOUS_FLOWER, ETravelMethod.HOUSE_TELEPORT, 'Limpwurt seed');
+    Inc(u);
+  end;
+
+  if Self.ArdougneFlower then
+  begin
+    Self.AddPatch(EFarmPatch.ARDY_FLOWER, ETravelMethod.ARDOUGNE_TELEPORT, 'Limpwurt seed');
+    Inc(u);
+  end;
+
+  if Self.FaladorFlower then
+  begin
+    Self.AddPatch(EFarmPatch.FALLY_FLOWER, ETravelMethod.FALADOR_TELEPORT, 'Limpwurt seed');
+    Inc(u);
+  end;
+
+  if Self.CatherbyFlower then
+  begin
+    Self.AddPatch(EFarmPatch.CATHERBY_FLOWER, ETravelMethod.CAMELOT_TELEPORT, 'Limpwurt seed');
+    Inc(u);
+  end;
+
+  case Self.CompostMethod of
+    ECompostMethod.BOTTOMLESS:
+    begin
+      Self.FarmItems += 'Bottomless compost bucket';
+      Self.FarmItemAmounts += 1;
+    end;
+
+    ECompostMethod.ULTRA:
+    begin
+      Self.FarmItems += 'Ultracompost';
+      Self.FarmItemAmounts += u;
+    end;
+  end;
+
+  Self.FarmItems += 'Spade';
+  Self.FarmItemAmounts += 1;
+
+  if Self.MSecs then
+  begin
+    FarmItems += 'Magic secateurs';
+    FarmItemAmounts += 1;
+  end;
+
+  if u > 0 then
+  begin
+    Self.FarmItems += 'Limpwurt seed';
+    Self.FarmItemAmounts += u;
+  end;
+
+  if h > 0 then
+  begin
+    Self.FarmItems += Self.HerbSeed;
+    Self.FarmItemAmounts += h;
+  end;
+
+  if not Self.BDibber then
+  begin
+    Self.FarmItems += 'Seed dibber';
+    Self.FarmItemAmounts += 1;
+  end;
+
+  for i := 0 to High(Self.Patches) do
+    if not (Self.Patches[i].Data.MapCoords in Tmp) then
+      Tmp += Self.Patches[i].Data.MapCoords;
 
   if ScriptWalker = nil then
   begin
@@ -2532,14 +2640,55 @@ begin
   else
     ScriptWalker^.AddRegions(tmp);
 
-  Self.InactivityTimer.Init(6 * ONE_MINUTE);
-
   if StartWithRun then
     Self.ReadyTimer.Init(0)
   else
     Self.ReadyTimer.Init(Self.GetNextTime());
 
-  SetLength(Self.HarvestQuantities, Length(LeprechaunItems));
+  (*// Boolean fields
+  WriteLn('Hosidius Flower: ', Self.HosidiusFlower);
+  WriteLn('Hosidius Herb: ', Self.HosidiusHerb);
+  WriteLn('Falador Flower: ', Self.FaladorFlower);
+  WriteLn('Falador Herb: ', Self.FaladorHerb);
+  WriteLn('Ardougne Flower: ', Self.ArdougneFlower);
+  WriteLn('Ardougne Herb: ', Self.ArdougneHerb);
+  WriteLn('Catherby Flower: ', Self.CatherbyFlower);
+  WriteLn('Catherby Herb: ', Self.CatherbyHerb);
+  WriteLn('BDibber: ', Self.BDibber);
+  WriteLn('Start With Run: ', Self.StartWithRun);
+  WriteLn('MSecs: ', Self.MSecs);
+
+  // Arrays
+  WriteLn('Farm Item Amounts: ', ToStr(Self.FarmItemAmounts));
+  WriteLn('Return Item Amounts: ', ToStr(Self.ReturnItemAmounts));
+
+  WriteLn('Herb Seed: ', ToStr(Self.HerbSeed));
+  WriteLn('Compost Method: ', ToStr(Self.CompostMethod));
+
+  // Complex arrays
+  WriteLn('Patches Length: ', Length(Self.Patches));
+  WriteLn('Farm Items Length: ', Length(Self.FarmItems));
+  WriteLn('Return Items Length: ', Length(Self.ReturnItems));*)
+end;
+
+function TFarmRunner.WithdrawNextRun(): Boolean;
+var
+  Item: TRSBankItem;
+  i: Int32;
+begin
+  if not Bank.IsOpen() then
+    Exit(False);
+
+  for i := 0 to High(Self.FarmItems) do
+  begin
+    Item := TRSBankItem.Setup(Self.FarmItems[i], Self.FarmItemAmounts[i], False);
+    Bank.WithdrawItem(Item, False);
+    WaitEx(500, 450);
+  end;
+
+  Result := WaitUntil(Inventory.ContainsAll(Self.FarmItems), 500, 2750);
+
+  WaitEx(500, 450);
 end;
 
 procedure TFarmRunner.Run();
@@ -2551,7 +2700,8 @@ begin
   if not RSClient.IsLoggedIn() then
     Login.LoginPlayer();
 
-  Antiban.DebugLn('Starting farm run.');
+  Self.DebugLn('Starting a run');
+
   Self.Runtime.Start();
 
   AntibanMinZ := Antiban.MinZoom;
@@ -2612,9 +2762,6 @@ begin
     until InactivityTimer.IsFinished();
 
     Self.CurrentPatch.Skip := Self.CurrentPatch.Complete := False;
-
-    if Self.DoReport then
-      Self.Report();
   end;
 
   if InactivityTimer.IsFinished() then
