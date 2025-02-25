@@ -1990,12 +1990,10 @@ end;
 
 procedure TFarmRunner.OnStart();
 begin
-
 end;
 
 procedure TFarmRunner.OnComplete();
 begin
-
 end;
 
 function TRSChat.ChatUntilOptions(): Boolean;
@@ -2021,8 +2019,6 @@ var
 begin
   if not RSClient.IsLoggedIn() then
     Exit();
-
-  WriteLn('Noting items at ', Self.CurrentPatch.Data.Name);
 
   for i := 0 to High(LeprechaunItems) do
   begin
